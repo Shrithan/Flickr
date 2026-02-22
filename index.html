@@ -1,0 +1,3517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flickr</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-deep:    #0a0a0a;
+      --bg-card:    #111111;
+      --bg-panel:   #181818;
+      --blue:       #4f6ef7;
+      --yellow:     #f5a623;
+      --text:       #ffffff;
+      --muted:      #6b7280;
+      --border:     rgba(255,255,255,0.07);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* subtle blue glow only */
+    .bg-glow {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+    }
+    .bg-glow::before {
+      content: '';
+      position: absolute;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(79,110,247,0.09) 0%, transparent 70%);
+      top: -150px; left: -150px;
+    }
+    .bg-glow::after {
+      content: '';
+      position: absolute;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(245,166,35,0.06) 0%, transparent 70%);
+      bottom: -100px; right: -100px;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 68px;
+      background: rgba(10,10,10,0.92);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-img { height: 34px; object-fit: contain; display: block; }
+
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-links a {
+      color: var(--muted); font-size: 0.87rem; font-weight: 500;
+      text-decoration: none; transition: color 0.2s; cursor: pointer;
+    }
+    .nav-links a:hover, .nav-links a.active { color: var(--text); }
+
+    .btn-soon {
+      background: var(--yellow);
+      color: #000; border: none;
+      padding: 10px 22px; border-radius: 8px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.84rem; font-weight: 800;
+      cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+      box-shadow: 0 4px 18px rgba(245,166,35,0.3);
+    }
+    .btn-soon:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    /* ── PAGE SWITCHING ── */
+    .page-view { display: none; }
+    .page-view.active { display: block; }
+
+    /* ════════════════════════
+       RESULTS PAGE
+    ════════════════════════ */
+    .results-page {
+      position: relative; z-index: 1;
+      padding-top: 120px; padding-bottom: 80px;
+      display: flex; flex-direction: column; align-items: center;
+    }
+
+    /* gauge */
+    .gauge-wrap {
+      width: 200px; height: 100px; margin-bottom: 28px;
+      animation: fadeUp 0.6s ease both;
+    }
+    .gauge-wrap svg { width: 100%; height: auto; overflow: visible; }
+
+    @keyframes sweepNeedle {
+      from { transform: rotate(-90deg); }
+      to   { transform: rotate(10deg); }
+    }
+    @keyframes drawArc {
+      from { stroke-dashoffset: 267; }
+      to   { stroke-dashoffset: 67; }
+    }
+    .needle {
+      transform-origin: 100px 100px;
+      animation: sweepNeedle 1.2s cubic-bezier(0.34,1.56,0.64,1) 0.3s both;
+    }
+
+    .result-title {
+      font-size: 1.7rem; font-weight: 800; letter-spacing: -0.4px;
+      text-align: center; margin-bottom: 10px;
+      animation: fadeUp 0.6s 0.15s ease both;
+    }
+    .result-sub {
+      color: var(--blue); font-size: 0.87rem; font-weight: 500;
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer; margin-bottom: 36px;
+      animation: fadeUp 0.6s 0.25s ease both;
+    }
+
+    /* shared button */
+    .btn-action {
+      width: 400px; max-width: 92vw;
+      border: none; color: #fff;
+      padding: 16px 24px; border-radius: 12px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.84rem; font-weight: 700; letter-spacing: 0.8px;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+    }
+    .btn-action:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-action.blue   { background: var(--blue); }
+    .btn-action.yellow { background: var(--yellow); color: #000; }
+
+    .chevron { transition: transform 0.3s; }
+    .btn-expand.open .chevron { transform: rotate(180deg); }
+
+    /* CREATE SAFE VIDEO — first */
+    .btn-safe { animation: fadeUp 0.6s 0.3s ease both; }
+
+    /* link input section */
+    .link-section {
+      width: 400px; max-width: 92vw;
+      overflow: hidden; max-height: 0;
+      transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1);
+    }
+    .link-section.open { max-height: 500px; }
+
+    .link-card {
+      margin-top: 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+    }
+    .link-card-title {
+      font-size: 0.78rem; font-weight: 700; letter-spacing: 1.2px;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 14px;
+    }
+    .link-input-row {
+      display: flex; gap: 10px;
+    }
+    .link-input {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.82rem; font-weight: 500;
+      outline: none; transition: border-color 0.2s;
+    }
+    .link-input::placeholder { color: var(--muted); }
+    .link-input:focus { border-color: var(--blue); }
+    .link-submit {
+      background: var(--blue); color: white; border: none;
+      padding: 12px 20px; border-radius: 9px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.82rem; font-weight: 700;
+      cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+      white-space: nowrap;
+    }
+    .link-submit:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    /* processing spinner */
+    .processing-box {
+      margin-top: 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 36px 24px;
+      text-align: center;
+      display: none;
+    }
+    .spinner {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 3px solid rgba(79,110,247,0.2);
+      border-top-color: var(--blue);
+      margin: 0 auto 16px;
+      animation: spin 0.85s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .processing-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 6px; }
+    .processing-sub   { font-size: 0.75rem; color: var(--muted); }
+
+    /* result box */
+    .result-box {
+      margin-top: 12px;
+      background: var(--bg-panel);
+      border: 1px solid rgba(79,110,247,0.2);
+      border-radius: 14px;
+      padding: 28px 24px;
+      text-align: center;
+      display: none;
+      animation: fadeUp 0.4s ease both;
+    }
+    .result-box-icon {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: rgba(79,110,247,0.12);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 14px;
+    }
+    .result-box-title { font-size: 0.95rem; font-weight: 800; margin-bottom: 6px; }
+    .result-box-sub   { font-size: 0.75rem; color: var(--muted); margin-bottom: 20px; line-height: 1.6; }
+    .download-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--yellow); color: #000;
+      text-decoration: none;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.82rem; font-weight: 800;
+      padding: 12px 24px; border-radius: 10px;
+      transition: opacity 0.2s, transform 0.15s;
+      margin-bottom: 12px;
+    }
+    .download-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .try-again-btn {
+      display: block; background: transparent;
+      border: 1px solid var(--border); color: var(--muted);
+      font-family: 'Montserrat', sans-serif; font-size: 0.76rem; font-weight: 600;
+      padding: 9px 20px; border-radius: 8px;
+      cursor: pointer; transition: all 0.2s; margin: 8px auto 0;
+    }
+    .try-again-btn:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+    /* error box */
+    .error-box {
+      margin-top: 12px;
+      background: var(--bg-panel);
+      border: 1px solid rgba(245,166,35,0.2);
+      border-radius: 14px;
+      padding: 28px 24px;
+      text-align: center;
+      display: none;
+      animation: fadeUp 0.4s ease both;
+    }
+    .error-icon {
+      width: 50px; height: 50px; border-radius: 50%;
+      background: rgba(245,166,35,0.1);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 12px;
+    }
+    .error-title { font-size: 0.9rem; font-weight: 800; color: var(--yellow); margin-bottom: 6px; }
+    .error-sub   { font-size: 0.75rem; color: var(--muted); margin-bottom: 16px; }
+
+    /* VIEW TIMESTAMPS — second */
+    .btn-expand { animation: fadeUp 0.6s 0.4s ease both; margin-top: 16px; }
+
+    .timestamps-wrap {
+      width: 400px; max-width: 92vw;
+      overflow: hidden; max-height: 0;
+      transition: max-height 0.5s cubic-bezier(0.4,0,0.2,1);
+    }
+    .timestamps-wrap.open { max-height: 600px; }
+
+    /* ── VIDEO PLAYER CARD ── */
+    .player-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-top: 12px;
+      overflow: hidden;
+      animation: fadeUp 0.4s ease both;
+    }
+    .player-screen {
+      width: 100%; aspect-ratio: 16/9;
+      background: #000;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    .player-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .player-placeholder {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+      color: var(--muted);
+    }
+    .player-placeholder-icon {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .player-placeholder-text { font-size: 0.75rem; font-weight: 600; }
+    .player-flash-overlay {
+      position: absolute; inset: 0;
+      background: rgba(245,56,56,0.0);
+      pointer-events: none;
+      transition: background 0.15s ease;
+    }
+    .player-flash-overlay.flash { background: rgba(245,56,56,0.22); }
+    .player-time-badge {
+      position: absolute; top: 10px; left: 12px;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+      border-radius: 6px; padding: 4px 10px;
+      font-size: 0.72rem; font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #fff; letter-spacing: 0.4px; pointer-events: none;
+    }
+    .player-trigger-badge {
+      position: absolute; top: 10px; right: 12px;
+      background: rgba(245,56,56,0.85); backdrop-filter: blur(6px);
+      border-radius: 6px; padding: 4px 10px;
+      font-size: 0.72rem; font-weight: 800; letter-spacing: 0.4px;
+      color: #fff; display: none;
+    }
+    .player-trigger-badge.visible { display: block; }
+    .player-controls { padding: 14px 16px 16px; background: var(--bg-panel); }
+    .player-timeline {
+      position: relative; width: 100%; height: 36px;
+      display: flex; align-items: center;
+      cursor: pointer; margin-bottom: 10px;
+    }
+    .timeline-track {
+      position: absolute; left: 0; right: 0;
+      height: 5px; background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+    }
+    .timeline-progress {
+      height: 100%; background: var(--blue);
+      border-radius: 3px; width: 0%;
+      pointer-events: none;
+    }
+    .timeline-thumb {
+      position: absolute; top: 50%; width: 13px; height: 13px;
+      background: #fff; border-radius: 50%;
+      transform: translate(-50%, -50%);
+      left: 0%; pointer-events: none;
+      box-shadow: 0 0 0 3px rgba(79,110,247,0.4);
+    }
+    .timeline-marker {
+      position: absolute; top: 50%;
+      width: 4px; height: 14px;
+      background: #f53838; border-radius: 2px;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+      transition: height 0.15s, background 0.15s;
+      z-index: 2;
+    }
+    .timeline-marker:hover { height: 22px; background: #ff6b6b; }
+    .timeline-marker::after {
+      content: attr(data-time);
+      position: absolute; bottom: calc(100% + 8px);
+      left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.9); color: #fff;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.65rem; font-weight: 700;
+      padding: 4px 8px; border-radius: 5px;
+      white-space: nowrap; pointer-events: none;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .timeline-marker:hover::after { opacity: 1; }
+    .player-bottom { display: flex; align-items: center; gap: 12px; }
+    .play-btn {
+      width: 34px; height: 34px; flex-shrink: 0;
+      background: var(--blue); border: none; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+    }
+    .play-btn:hover { opacity: 0.85; transform: scale(1.06); }
+    .player-time-display {
+      font-size: 0.75rem; font-weight: 700;
+      font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap;
+    }
+    .player-time-display span { color: var(--text); }
+    .player-legend {
+      margin-left: auto; display: flex; align-items: center; gap: 6px;
+      font-size: 0.68rem; font-weight: 600; color: var(--muted);
+    }
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; background: #f53838; flex-shrink: 0; }
+
+    /* how it works */
+    .how-preview {
+      width: 400px; max-width: 92vw;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-top: 32px; padding: 24px;
+      animation: fadeUp 0.6s 0.5s ease both;
+    }
+    .how-preview-header {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 1.5px;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 14px;
+    }
+    .how-dots { display: flex; gap: 6px; margin-bottom: 14px; }
+    .how-dots span { width: 8px; height: 8px; border-radius: 50%; }
+    .how-dots span:nth-child(1) { background: #f55d42; }
+    .how-dots span:nth-child(2) { background: var(--yellow); }
+    .how-dots span:nth-child(3) { background: #42c97a; }
+    .how-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+    .how-bar {
+      height: 7px; border-radius: 4px;
+      background: var(--bg-panel); position: relative; overflow: hidden;
+    }
+    .how-bar::after {
+      content: ''; position: absolute; inset: 0; border-radius: 4px;
+      background: linear-gradient(90deg, var(--blue), var(--yellow));
+      transform: scaleX(0); transform-origin: left;
+      transition: transform 1.2s cubic-bezier(0.4,0,0.2,1);
+    }
+    .how-bar.w70::after { transform: scaleX(0.70); transition-delay: 0.8s; }
+    .how-bar.w45::after { transform: scaleX(0.45); transition-delay: 1.0s; }
+    .how-bar.w85::after { transform: scaleX(0.85); transition-delay: 1.2s; }
+    .preview-img-row { display: flex; align-items: center; gap: 12px; }
+    .preview-thumb {
+      width: 60px; height: 44px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--blue), var(--yellow));
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    }
+    .preview-text { font-size: 0.76rem; color: var(--muted); line-height: 1.55; }
+
+    /* ════════════════════════
+       ABOUT PAGE
+    ════════════════════════ */
+    .about-page {
+      position: relative; z-index: 1;
+      padding-top: 100px; padding-bottom: 80px;
+      min-height: 100vh;
+    }
+
+    .about-hero {
+      max-width: 820px; margin: 0 auto;
+      padding: 60px 48px; text-align: center;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .about-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(79,110,247,0.1);
+      border: 1px solid rgba(79,110,247,0.22);
+      border-radius: 8px; padding: 6px 16px;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 1.2px;
+      color: var(--blue); text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    .about-title {
+      line-height: 1.1; margin-bottom: 14px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .meet-word {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 900; font-size: 3.4rem; letter-spacing: -3px;
+      background: linear-gradient(135deg, #ffffff 40%, #6b7280 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .about-subtitle {
+      font-size: 1rem; color: var(--muted); font-weight: 500;
+      margin-bottom: 18px; line-height: 1.6;
+    }
+    .about-tagline {
+      font-size: 1.1rem; font-weight: 700; margin-bottom: 32px; line-height: 1.5;
+    }
+
+    .about-link-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--blue); color: white; text-decoration: none;
+      padding: 13px 28px; border-radius: 10px;
+      font-size: 0.84rem; font-weight: 700;
+      transition: all 0.2s;
+      box-shadow: 0 4px 20px rgba(79,110,247,0.3);
+    }
+    .about-link-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(79,110,247,0.45); }
+
+    .about-divider { max-width: 820px; margin: 0 auto; height: 1px; background: var(--border); }
+
+    .about-features {
+      max-width: 820px; margin: 52px auto;
+      padding: 0 48px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+      animation: fadeUp 0.5s 0.15s ease both;
+    }
+    .feature-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 26px 22px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .feature-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.12); }
+    .feature-icon {
+      width: 42px; height: 42px; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 14px;
+    }
+    .feature-icon.blue   { background: rgba(79,110,247,0.14); }
+    .feature-icon.yellow { background: rgba(245,166,35,0.14); }
+    .feature-icon.white  { background: rgba(255,255,255,0.08); }
+    .feature-title { font-size: 0.87rem; font-weight: 800; margin-bottom: 8px; }
+    .feature-desc  { font-size: 0.76rem; color: var(--muted); line-height: 1.6; }
+
+    .about-research {
+      max-width: 820px; margin: 0 auto 56px; padding: 0 48px;
+      animation: fadeUp 0.5s 0.25s ease both;
+    }
+    .research-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 40px 44px;
+      position: relative; overflow: hidden;
+    }
+    .research-card::before {
+      content: ''; position: absolute; top: 0; right: 0;
+      width: 220px; height: 220px;
+      background: radial-gradient(circle, rgba(79,110,247,0.07) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .research-label {
+      font-size: 0.67rem; font-weight: 700; letter-spacing: 2px;
+      color: var(--blue); text-transform: uppercase; margin-bottom: 14px;
+    }
+    .research-title { font-size: 1.35rem; font-weight: 800; margin-bottom: 18px; letter-spacing: -0.3px; }
+    .research-abstract-label {
+      font-size: 0.67rem; font-weight: 700; letter-spacing: 1.5px;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 10px;
+    }
+    .research-abstract { font-size: 0.84rem; color: var(--muted); line-height: 1.8; margin-bottom: 26px; }
+    .research-link {
+      display: inline-flex; align-items: center; gap: 8px;
+      color: var(--blue); font-size: 0.82rem; font-weight: 700;
+      text-decoration: none;
+      border: 1px solid rgba(79,110,247,0.28);
+      padding: 10px 20px; border-radius: 9px; transition: all 0.2s;
+    }
+    .research-link:hover { opacity: 0.75; background: rgba(79,110,247,0.07); }
+
+    /* ── TABS ── */
+    .input-tabs {
+      display: flex; gap: 6px; margin-bottom: 16px;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 9px; padding: 4px;
+    }
+    .input-tab {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 9px 14px; border-radius: 7px; border: none;
+      background: transparent; color: var(--muted);
+      font-family: 'Montserrat', sans-serif; font-size: 0.78rem; font-weight: 700;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .input-tab:hover { color: var(--text); }
+    .input-tab.active {
+      background: var(--bg-panel); color: var(--text);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.4);
+    }
+
+    /* ── UPLOAD DROP ZONE ── */
+    .upload-drop {
+      border: 2px dashed rgba(79,110,247,0.35);
+      border-radius: 12px;
+      background: rgba(79,110,247,0.04);
+      padding: 28px 20px; text-align: center;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .upload-drop:hover, .upload-drop.drag-over {
+      border-color: var(--blue);
+      background: rgba(79,110,247,0.09);
+    }
+    .upload-drop-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: rgba(79,110,247,0.12);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 10px;
+    }
+    .upload-drop-label { font-size: 0.83rem; font-weight: 700; margin-bottom: 4px; }
+    .upload-drop-sub   { font-size: 0.72rem; color: var(--muted); }
+
+    /* ── TOLERANCE PICKER ── */
+    .tolerance-box {
+      margin-top: 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      animation: fadeUp 0.35s ease both;
+    }
+    .tolerance-title {
+      font-size: 0.78rem; font-weight: 700; letter-spacing: 1.2px;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 16px;
+      text-align: center;
+    }
+    .tolerance-cards {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      margin-bottom: 18px;
+    }
+    .tolerance-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border);
+      border-radius: 12px; padding: 18px 16px;
+      cursor: pointer; transition: all 0.2s;
+      text-align: left;
+    }
+    .tolerance-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); }
+    .tolerance-card.selected-low  { border-color: var(--yellow); background: rgba(245,166,35,0.06); }
+    .tolerance-card.selected-high { border-color: var(--blue);   background: rgba(79,110,247,0.06); }
+    .tolerance-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 12px;
+    }
+    .tol-low  { background: rgba(245,166,35,0.13); }
+    .tol-high { background: rgba(79,110,247,0.13); }
+    .tolerance-label {
+      font-size: 0.85rem; font-weight: 800; margin-bottom: 6px;
+    }
+    .tolerance-desc {
+      font-size: 0.72rem; color: var(--muted); line-height: 1.55; margin-bottom: 10px;
+    }
+    .tolerance-tag {
+      display: inline-block; font-size: 0.65rem; font-weight: 800;
+      letter-spacing: 0.8px; padding: 3px 9px; border-radius: 5px;
+      text-transform: uppercase;
+    }
+    .tol-tag-yellow { background: rgba(245,166,35,0.15); color: var(--yellow); }
+    .tol-tag-blue   { background: rgba(79,110,247,0.15);  color: var(--blue); }
+    .tolerance-actions {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .tolerance-confirm {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--blue); color: white; border: none;
+      font-family: 'Montserrat', sans-serif; font-size: 0.83rem; font-weight: 800;
+      padding: 12px 28px; border-radius: 10px;
+      cursor: pointer; transition: all 0.2s;
+      opacity: 0.4; pointer-events: none;
+    }
+    .tolerance-confirm.ready {
+      opacity: 1; pointer-events: all;
+    }
+    .tolerance-confirm.ready:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    .timestamp-empty {
+      font-size: 0.8rem; color: var(--muted); font-weight: 500;
+      text-align: center; padding: 8px 0;
+    }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-overlay.open {
+      opacity: 1; pointer-events: all;
+    }
+    .modal-box {
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      width: 100%; max-width: 480px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+      transform: translateY(16px);
+      transition: transform 0.25s ease;
+    }
+    .modal-overlay.open .modal-box {
+      transform: translateY(0);
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 22px 24px 0;
+      margin-bottom: 20px;
+    }
+    .modal-title {
+      font-size: 0.95rem; font-weight: 800; letter-spacing: -0.2px;
+    }
+    .modal-close {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--bg-panel); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--muted); transition: all 0.2s;
+    }
+    .modal-close:hover { color: var(--text); border-color: rgba(255,255,255,0.15); }
+    .modal-body { padding: 0 24px 24px; display: flex; flex-direction: column; gap: 20px; }
+    .modal-section {
+      display: flex; gap: 14px; align-items: flex-start;
+    }
+    .modal-section-icon {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-section-icon.blue   { background: rgba(79,110,247,0.14); }
+    .modal-section-icon.yellow { background: rgba(245,166,35,0.14); }
+    .modal-section-icon.green  { background: rgba(34,211,122,0.12); }
+    .modal-section-title {
+      font-size: 0.82rem; font-weight: 800; margin-bottom: 6px;
+    }
+    .modal-section-text {
+      font-size: 0.76rem; color: var(--muted); line-height: 1.65;
+    }
+    .modal-section-text strong { color: var(--text); }
+    .modal-section-text em { color: var(--yellow); font-style: normal; font-weight: 600; }
+
+    /* ── TRIGGER COUNT ── */
+    .trigger-count-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      margin-bottom: 10px; animation: fadeUp 0.5s 0.2s ease both;
+    }
+    .trigger-count-num {
+      font-size: 4.5rem; font-weight: 900; letter-spacing: -4px; line-height: 1;
+      background: linear-gradient(135deg, #ffffff 40%, #6b7280 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .trigger-count-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
+      color: var(--muted); text-transform: uppercase; margin-top: 2px;
+    }
+
+    /* ── RISK BADGE ── */
+    .risk-badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      border-radius: 8px; padding: 7px 18px;
+      font-size: 0.75rem; font-weight: 800; letter-spacing: 1.2px;
+      text-transform: uppercase; margin-bottom: 28px;
+      animation: fadeUp 0.5s 0.3s ease both;
+      border: 1px solid transparent;
+    }
+    .risk-badge.safe   { background: rgba(34,197,94,0.1);  border-color: rgba(34,197,94,0.25);  color: #22c55e; }
+    .risk-badge.caution{ background: rgba(245,166,35,0.1); border-color: rgba(245,166,35,0.25); color: var(--yellow); }
+    .risk-badge.danger { background: rgba(239,68,68,0.1);  border-color: rgba(239,68,68,0.25);  color: #ef4444; }
+    .risk-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    /* ── STATS ROW ── */
+    .stats-row {
+      display: flex; gap: 10px;
+      width: 400px; max-width: 92vw;
+      margin-bottom: 20px;
+      animation: fadeUp 0.5s 0.35s ease both;
+    }
+    .stat-card {
+      flex: 1; background: var(--bg-card);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px 10px; text-align: center;
+    }
+    .stat-value {
+      font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px;
+      margin-bottom: 4px; font-variant-numeric: tabular-nums;
+    }
+    .stat-label {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 1px;
+      color: var(--muted); text-transform: uppercase;
+    }
+    .stat-card.highlight { border-color: rgba(245,166,35,0.3); }
+    .stat-card.highlight .stat-value { color: var(--yellow); }
+
+    /* ── MINI WAVEFORM ── */
+    .waveform-card {
+      width: 400px; max-width: 92vw;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px 20px; margin-bottom: 20px;
+      animation: fadeUp 0.5s 0.4s ease both;
+    }
+    .waveform-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+    }
+    .waveform-title {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 1.5px;
+      color: var(--muted); text-transform: uppercase;
+    }
+    .waveform-legend {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 0.62rem; font-weight: 600; color: var(--muted);
+    }
+    .waveform-legend-dot { width: 7px; height: 7px; border-radius: 2px; background: #ef4444; }
+    .waveform-track {
+      position: relative; width: 100%; height: 40px;
+      background: rgba(255,255,255,0.04); border-radius: 6px; overflow: hidden;
+    }
+    .waveform-bar {
+      position: absolute; bottom: 0; width: 3px;
+      background: rgba(79,110,247,0.25); border-radius: 2px 2px 0 0;
+      transition: background 0.2s;
+    }
+    .waveform-bar.flagged { background: #ef4444; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(18px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    /* ══ LOGIN PAGE ══ */
+    .login-page { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:68px 24px 40px; position:relative; z-index:1; }
+    .login-card { width:100%; max-width:400px; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; padding:40px 36px; animation:fadeUp 0.5s ease both; }
+    .login-badge { display:inline-block; background:rgba(79,110,247,0.12); border:1px solid rgba(79,110,247,0.2); border-radius:8px; padding:5px 12px; font-size:0.65rem; font-weight:800; letter-spacing:1.5px; color:var(--blue); text-transform:uppercase; margin-bottom:24px; }
+    .login-title { font-size:1.4rem; font-weight:900; letter-spacing:-0.5px; margin-bottom:6px; }
+    .login-sub   { font-size:0.78rem; color:var(--muted); margin-bottom:28px; }
+    .login-field { margin-bottom:16px; }
+    .login-label { display:block; font-size:0.68rem; font-weight:700; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:8px; }
+    .login-input { width:100%; background:var(--bg-panel); border:1px solid var(--border); border-radius:10px; padding:13px 16px; color:var(--text); font-family:Montserrat,sans-serif; font-size:0.84rem; font-weight:500; outline:none; transition:border-color 0.2s; box-sizing:border-box; }
+    .login-input:focus { border-color:var(--blue); }
+    .login-input::placeholder { color:var(--muted); }
+    .login-btn { width:100%; margin-top:8px; background:var(--blue); color:white; border:none; padding:14px; border-radius:10px; font-family:Montserrat,sans-serif; font-size:0.84rem; font-weight:800; cursor:pointer; transition:opacity 0.2s,transform 0.15s; }
+    .login-btn:hover { opacity:0.88; transform:translateY(-1px); }
+    .login-error { margin-top:14px; background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.2); border-radius:8px; padding:10px 14px; font-size:0.75rem; color:var(--yellow); font-weight:600; display:none; }
+    .login-hint { margin-top:20px; text-align:center; font-size:0.65rem; color:rgba(255,255,255,0.1); }
+
+    /* ══ SEIZURE LOGGER PAGE ══ */
+    .logger-page { min-height:100vh; padding:100px 24px 60px; display:flex; flex-direction:column; align-items:center; position:relative; z-index:1; }
+    .logger-header { width:100%; max-width:560px; display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; animation:fadeUp 0.4s ease both; }
+    .logger-page-label { font-size:0.65rem; font-weight:800; letter-spacing:2px; color:var(--blue); text-transform:uppercase; margin-bottom:4px; }
+    .logger-page-title { font-size:1.5rem; font-weight:900; letter-spacing:-0.4px; }
+    .logger-user-chip { display:flex; align-items:center; gap:8px; background:var(--bg-panel); border:1px solid var(--border); border-radius:30px; padding:8px 14px; font-size:0.72rem; font-weight:700; }
+    .logger-user-dot { width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 6px rgba(34,197,94,0.5); }
+    .logger-logout { background:none; border:none; color:var(--muted); font-size:0.65rem; font-weight:700; cursor:pointer; padding:0; margin-left:4px; transition:color 0.2s; font-family:Montserrat,sans-serif; }
+    .logger-logout:hover { color:var(--text); }
+    .log-seizure-btn { width:100%; max-width:560px; background:linear-gradient(135deg,#ef4444,#dc2626); border:none; color:white; padding:20px 28px; border-radius:16px; font-family:Montserrat,sans-serif; font-size:1rem; font-weight:900; cursor:pointer; display:flex; align-items:center; justify-content:space-between; transition:opacity 0.2s,transform 0.15s,box-shadow 0.2s; box-shadow:0 8px 32px rgba(239,68,68,0.25); animation:fadeUp 0.4s 0.1s ease both; margin-bottom:12px; }
+    .log-seizure-btn:hover { opacity:0.92; transform:translateY(-2px); box-shadow:0 12px 40px rgba(239,68,68,0.35); }
+    .log-seizure-btn:active { transform:scale(0.98); }
+    .log-btn-left { display:flex; align-items:center; gap:14px; }
+    .log-btn-icon { width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; }
+    .log-btn-title { font-size:1rem; font-weight:900; }
+    .log-btn-sub { font-size:0.7rem; font-weight:600; opacity:0.75; margin-top:2px; }
+    .log-note-row { width:100%; max-width:560px; display:flex; gap:10px; margin-bottom:28px; animation:fadeUp 0.4s 0.15s ease both; }
+    .log-note-input { flex:1; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:12px 16px; color:var(--text); font-family:Montserrat,sans-serif; font-size:0.8rem; font-weight:500; outline:none; transition:border-color 0.2s; }
+    .log-note-input:focus { border-color:var(--blue); }
+    .log-note-input::placeholder { color:var(--muted); }
+    .period-tabs { width:100%; max-width:560px; display:flex; gap:6px; margin-bottom:20px; animation:fadeUp 0.4s 0.2s ease both; }
+    .period-tab { flex:1; padding:9px 6px; border-radius:8px; border:none; background:var(--bg-card); color:var(--muted); font-family:Montserrat,sans-serif; font-size:0.72rem; font-weight:700; cursor:pointer; transition:all 0.2s; }
+    .period-tab.active { background:var(--blue); color:white; }
+    .period-tab:hover:not(.active) { color:var(--text); }
+    .logger-stats { width:100%; max-width:560px; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:24px; animation:fadeUp 0.4s 0.25s ease both; }
+    .logger-stat { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:16px 14px; text-align:center; }
+    .logger-stat.red { border-color:rgba(239,68,68,0.25); }
+    .logger-stat.red .ls-val { color:#ef4444; }
+    .ls-val { font-size:1.6rem; font-weight:900; letter-spacing:-1px; line-height:1; margin-bottom:5px; }
+    .ls-label { font-size:0.6rem; font-weight:700; letter-spacing:1.2px; color:var(--muted); text-transform:uppercase; }
+    .events-card { width:100%; max-width:560px; background:var(--bg-card); border:1px solid var(--border); border-radius:16px; overflow:hidden; animation:fadeUp 0.4s 0.3s ease both; }
+    .events-card-header { display:flex; align-items:center; justify-content:space-between; padding:18px 20px; border-bottom:1px solid var(--border); }
+    .events-card-title { font-size:0.72rem; font-weight:800; letter-spacing:1.2px; color:var(--muted); text-transform:uppercase; }
+    .report-btn { display:flex; align-items:center; gap:6px; background:var(--bg-panel); border:1px solid var(--border); border-radius:7px; padding:7px 14px; font-family:Montserrat,sans-serif; font-size:0.7rem; font-weight:700; color:var(--text); cursor:pointer; transition:all 0.2s; }
+    .report-btn:hover { border-color:rgba(255,255,255,0.15); }
+    .events-list { max-height:380px; overflow-y:auto; }
+    .events-list::-webkit-scrollbar { width:4px; }
+    .events-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:4px; }
+    .event-row { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--border); animation:fadeUp 0.3s ease both; }
+    .event-row:last-child { border-bottom:none; }
+    .event-dot { width:9px; height:9px; border-radius:50%; background:#ef4444; flex-shrink:0; box-shadow:0 0 8px rgba(239,68,68,0.4); }
+    .event-info { flex:1; }
+    .event-date { font-size:0.78rem; font-weight:700; margin-bottom:2px; }
+    .event-note { font-size:0.68rem; color:var(--muted); font-weight:500; }
+    .event-time-ago { font-size:0.62rem; color:var(--muted); font-weight:600; white-space:nowrap; }
+    .events-empty { padding:48px 24px; text-align:center; color:var(--muted); font-size:0.78rem; font-weight:600; }
+
+    /* ══ REPORT MODAL ══ */
+    .report-modal-overlay { position:fixed; inset:0; z-index:600; background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; padding:24px; opacity:0; pointer-events:none; transition:opacity 0.25s; }
+    .report-modal-overlay.open { opacity:1; pointer-events:all; }
+    .report-modal { background:var(--bg-card); border:1px solid rgba(255,255,255,0.1); border-radius:20px; width:100%; max-width:500px; max-height:80vh; overflow-y:auto; box-shadow:0 24px 64px rgba(0,0,0,0.6); transform:translateY(16px); transition:transform 0.25s; }
+    .report-modal-overlay.open .report-modal { transform:translateY(0); }
+    .report-modal-head { display:flex; align-items:center; justify-content:space-between; padding:24px 28px 0; margin-bottom:6px; }
+    .report-modal-title { font-size:1rem; font-weight:900; }
+    .report-modal-close { width:32px; height:32px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--muted); transition:all 0.2s; }
+    .report-modal-close:hover { color:var(--text); }
+    .report-modal-body { padding:16px 28px 28px; }
+    .report-section-label { font-size:0.62rem; font-weight:800; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:12px; margin-top:20px; }
+    .report-section-label:first-child { margin-top:0; }
+    .report-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:4px; }
+    .report-stat { background:var(--bg-panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
+    .report-stat-val { font-size:1.3rem; font-weight:900; margin-bottom:3px; }
+    .report-stat-val.red { color:#ef4444; }
+    .report-stat-label { font-size:0.62rem; font-weight:700; color:var(--muted); }
+    .report-event-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); font-size:0.75rem; }
+    .report-event-row:last-child { border-bottom:none; }
+    .report-event-dot { width:7px; height:7px; border-radius:50%; background:#ef4444; flex-shrink:0; }
+    .report-download-btn { width:100%; margin-top:20px; background:var(--yellow); color:#000; border:none; padding:13px; border-radius:10px; font-family:Montserrat,sans-serif; font-size:0.82rem; font-weight:800; cursor:pointer; transition:opacity 0.2s; }
+    .report-download-btn:hover { opacity:0.88; }
+
+    /* Nav chip */
+    .nav-user-chip { display:flex; align-items:center; gap:7px; background:var(--bg-panel); border:1px solid var(--border); border-radius:20px; padding:6px 12px; font-size:0.7rem; font-weight:700; color:var(--text); cursor:pointer; transition:border-color 0.2s; font-family:Montserrat,sans-serif; }
+    .nav-user-chip:hover { border-color:rgba(255,255,255,0.15); }
+    .nav-user-dot { width:7px; height:7px; border-radius:50%; background:#22c55e; }
+    #navUserArea { display:none; align-items:center; gap:10px; }
+
+    /* Feedback card */
+    .feedback-card { background:var(--bg-card); border:1px solid rgba(79,110,247,0.25); border-radius:14px; padding:18px 20px; margin-top:14px; animation:fadeUp 0.4s ease both; }
+    .feedback-title { font-size:0.72rem; font-weight:800; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
+    .feedback-q { font-size:0.82rem; font-weight:700; margin-bottom:12px; }
+    .feedback-btns { display:flex; gap:8px; }
+    .feedback-btn { flex:1; padding:10px; border-radius:9px; border:none; font-family:Montserrat,sans-serif; font-size:0.75rem; font-weight:800; cursor:pointer; transition:opacity 0.2s,transform 0.15s; }
+    .feedback-btn:hover { opacity:0.85; transform:translateY(-1px); }
+    .feedback-btn.seizure { background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; }
+    .feedback-btn.ok      { background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.25); color:#22c55e; }
+    .feedback-thanks { font-size:0.78rem; font-weight:700; color:var(--muted); text-align:center; padding:8px 0; display:none; }
+
+    /* Sensitivity badge on logger page */
+    .sensitivity-card { width:100%; max-width:560px; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin-bottom:20px; animation:fadeUp 0.4s 0.05s ease both; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .sensitivity-label { font-size:0.62rem; font-weight:800; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-bottom:5px; }
+    .sensitivity-value { font-size:1.1rem; font-weight:900; }
+    .sensitivity-sub { font-size:0.65rem; color:var(--muted); font-weight:600; margin-top:3px; }
+    .sensitivity-bar-wrap { flex:1; max-width:160px; }
+    .sensitivity-bar-track { height:6px; background:rgba(255,255,255,0.07); border-radius:6px; overflow:hidden; }
+    .sensitivity-bar-fill { height:100%; border-radius:6px; background:linear-gradient(90deg,#ef4444,#f5a623,#22c55e); transition:width 0.5s ease; }
+    .sensitivity-desc { font-size:0.6rem; color:var(--muted); font-weight:600; margin-top:5px; text-align:right; }
+
+    /* ══════════════════════════════
+       AESTHETIC SIDE PANELS
+    ══════════════════════════════ */
+
+    .results-page {
+      position: relative;
+    }
+
+    /* Left + Right floating decorative panels */
+    .side-deco {
+      position: fixed;
+      top: 68px;
+      bottom: 0;
+      width: calc((100vw - 480px) / 2 - 24px);
+      pointer-events: none;
+      z-index: 1;
+      overflow: hidden;
+    }
+    .side-deco.left  { left: 0; }
+    .side-deco.right { right: 0; }
+
+    /* Only show when there's room */
+    @media (max-width: 960px) {
+      .side-deco { display: none; }
+    }
+
+    /* ── Scan lines ── */
+    .scan-lines {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(79,110,247,0.025) 3px,
+        rgba(79,110,247,0.025) 4px
+      );
+    }
+
+    /* ── Moving scan sweep ── */
+    .scan-sweep {
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(79,110,247,0.4), transparent);
+      animation: scanSweep 6s ease-in-out infinite;
+      opacity: 0.6;
+    }
+    .side-deco.right .scan-sweep { animation-delay: -3s; }
+    @keyframes scanSweep {
+      0%   { top: 0%; opacity: 0; }
+      10%  { opacity: 0.6; }
+      90%  { opacity: 0.6; }
+      100% { top: 100%; opacity: 0; }
+    }
+
+    /* ── Corner bracket decorations ── */
+    .corner-tl, .corner-tr, .corner-bl, .corner-br {
+      position: absolute;
+      width: 20px; height: 20px;
+    }
+    .corner-tl { top: 24px; left: 16px;
+      border-top: 1.5px solid rgba(79,110,247,0.5);
+      border-left: 1.5px solid rgba(79,110,247,0.5); }
+    .corner-tr { top: 24px; right: 16px;
+      border-top: 1.5px solid rgba(79,110,247,0.5);
+      border-right: 1.5px solid rgba(79,110,247,0.5); }
+    .corner-bl { bottom: 40px; left: 16px;
+      border-bottom: 1.5px solid rgba(79,110,247,0.5);
+      border-left: 1.5px solid rgba(79,110,247,0.5); }
+    .corner-br { bottom: 40px; right: 16px;
+      border-bottom: 1.5px solid rgba(79,110,247,0.5);
+      border-right: 1.5px solid rgba(79,110,247,0.5); }
+
+    /* ── Floating data fragments (left) ── */
+    .data-frags {
+      position: absolute;
+      top: 60px; left: 0; right: 0;
+      display: flex; flex-direction: column; gap: 18px;
+      padding: 0 20px;
+    }
+    .data-frag {
+      display: flex; align-items: center; gap: 8px;
+      opacity: 0;
+      animation: fragFadeIn 0.6s ease forwards;
+    }
+    .data-frag:nth-child(1) { animation-delay: 0.4s; }
+    .data-frag:nth-child(2) { animation-delay: 0.7s; }
+    .data-frag:nth-child(3) { animation-delay: 1.0s; }
+    .data-frag:nth-child(4) { animation-delay: 1.3s; }
+    .data-frag:nth-child(5) { animation-delay: 1.6s; }
+    .data-frag:nth-child(6) { animation-delay: 1.9s; }
+    @keyframes fragFadeIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .side-deco.right .data-frag {
+      flex-direction: row-reverse;
+    }
+    .side-deco.right .data-frag {
+      animation-name: fragFadeInRight;
+    }
+    @keyframes fragFadeInRight {
+      from { opacity: 0; transform: translateX(8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .frag-dot {
+      width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+    }
+    .frag-dot.blue   { background: rgba(79,110,247,0.7); box-shadow: 0 0 6px rgba(79,110,247,0.5); }
+    .frag-dot.yellow { background: rgba(245,166,35,0.7); box-shadow: 0 0 6px rgba(245,166,35,0.5); }
+    .frag-dot.dim    { background: rgba(255,255,255,0.15); }
+    .frag-line {
+      height: 1px; flex: 1;
+      background: linear-gradient(90deg, rgba(79,110,247,0.4), transparent);
+    }
+    .side-deco.right .frag-line {
+      background: linear-gradient(270deg, rgba(79,110,247,0.4), transparent);
+    }
+    .frag-label {
+      font-family: 'Montserrat', monospace;
+      font-size: 0.6rem; font-weight: 700;
+      letter-spacing: 1.5px; color: rgba(255,255,255,0.18);
+      text-transform: uppercase; white-space: nowrap;
+    }
+    .frag-val {
+      font-family: 'Montserrat', monospace;
+      font-size: 0.6rem; font-weight: 700;
+      letter-spacing: 1px;
+      color: rgba(79,110,247,0.6);
+      white-space: nowrap;
+    }
+    .frag-val.yellow { color: rgba(245,166,35,0.6); }
+
+    /* ── Pulse nodes ── */
+    .pulse-nodes {
+      position: absolute;
+      bottom: 80px; left: 0; right: 0;
+      display: flex; flex-direction: column; gap: 28px;
+      padding: 0 20px;
+      align-items: flex-start;
+    }
+    .side-deco.right .pulse-nodes { align-items: flex-end; }
+    .pulse-node {
+      display: flex; align-items: center; gap: 10px;
+      opacity: 0;
+      animation: fragFadeIn 0.5s ease forwards;
+    }
+    .pulse-node:nth-child(1) { animation-delay: 2.2s; }
+    .pulse-node:nth-child(2) { animation-delay: 2.5s; }
+    .pulse-node:nth-child(3) { animation-delay: 2.8s; }
+    .side-deco.right .pulse-node {
+      flex-direction: row-reverse;
+      animation-name: fragFadeInRight;
+    }
+    .node-ring {
+      position: relative;
+      width: 10px; height: 10px; flex-shrink: 0;
+    }
+    .node-ring::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      background: rgba(79,110,247,0.8);
+      animation: nodePulse 2.5s ease-in-out infinite;
+    }
+    .node-ring.yellow::before { background: rgba(245,166,35,0.8); animation-delay: -1.2s; }
+    .node-ring.dim::before    { background: rgba(255,255,255,0.2); animation-delay: -0.6s; }
+    .node-ring::after {
+      content: '';
+      position: absolute;
+      inset: -5px;
+      border-radius: 50%;
+      border: 1px solid rgba(79,110,247,0.3);
+      animation: nodeRing 2.5s ease-in-out infinite;
+    }
+    .node-ring.yellow::after { border-color: rgba(245,166,35,0.3); animation-delay: -1.2s; }
+    .node-ring.dim::after    { border-color: rgba(255,255,255,0.1); animation-delay: -0.6s; }
+    @keyframes nodePulse {
+      0%, 100% { opacity: 0.5; transform: scale(0.85); }
+      50%       { opacity: 1;   transform: scale(1); }
+    }
+    @keyframes nodeRing {
+      0%, 100% { opacity: 0; transform: scale(0.8); }
+      50%       { opacity: 1; transform: scale(1.4); }
+    }
+    .node-tag {
+      font-family: 'Montserrat', monospace;
+      font-size: 0.58rem; font-weight: 700;
+      letter-spacing: 1.5px; color: rgba(255,255,255,0.15);
+      text-transform: uppercase;
+    }
+
+    /* ── Vertical rule lines ── */
+    .vert-rule {
+      position: absolute;
+      top: 48px; bottom: 48px;
+      width: 1px;
+    }
+    .side-deco.left  .vert-rule { right: 0; background: linear-gradient(to bottom, transparent, rgba(79,110,247,0.2) 30%, rgba(79,110,247,0.2) 70%, transparent); }
+    .side-deco.right .vert-rule { left: 0;  background: linear-gradient(to bottom, transparent, rgba(79,110,247,0.2) 30%, rgba(79,110,247,0.2) 70%, transparent); }
+
+    /* ── Hex grid decoration (right panel, top area) ── */
+    .hex-grid {
+      position: absolute;
+      top: 50px; right: 16px;
+      width: 90px; height: 90px;
+      opacity: 0.12;
+      animation: fragFadeIn 1s 0.3s ease both;
+    }
+    .hex-grid svg { width: 100%; height: 100%; }
+
+    /* ── Glitch text strips (left panel) ── */
+    .glitch-strip {
+      position: absolute;
+      right: 16px;
+      font-family: 'Montserrat', monospace;
+      font-size: 0.55rem; font-weight: 900;
+      letter-spacing: 3px; text-transform: uppercase;
+      writing-mode: vertical-rl;
+      color: rgba(79,110,247,0.15);
+      animation: glitchFade 4s ease-in-out infinite;
+    }
+    .glitch-strip.top    { top: 80px; }
+    .glitch-strip.bottom { bottom: 80px; color: rgba(245,166,35,0.12); animation-delay: -2s; }
+    @keyframes glitchFade {
+      0%, 100% { opacity: 0.6; }
+      45%       { opacity: 0.6; }
+      50%       { opacity: 0.15; letter-spacing: 4px; }
+      55%       { opacity: 0.6; letter-spacing: 3px; }
+    }
+
+    /* Right panel vertical text */
+    .vert-text {
+      position: absolute;
+      left: 16px;
+      font-family: 'Montserrat', monospace;
+      font-size: 0.55rem; font-weight: 900;
+      letter-spacing: 3px; text-transform: uppercase;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      color: rgba(79,110,247,0.15);
+      animation: glitchFade 4s ease-in-out infinite;
+    }
+    .vert-text.top    { top: 80px; animation-delay: -1s; }
+    .vert-text.bottom { bottom: 80px; color: rgba(245,166,35,0.12); animation-delay: -3s; }
+
+    /* ── Waveform deco (left, mid) ── */
+    .deco-wave {
+      position: absolute;
+      top: 50%; left: 16px; right: 16px;
+      transform: translateY(-50%);
+      height: 48px;
+      display: flex; align-items: flex-end; gap: 2px;
+      opacity: 0;
+      animation: fragFadeIn 0.6s 2s ease forwards;
+    }
+    .deco-wave-bar {
+      flex: 1;
+      border-radius: 1px 1px 0 0;
+      background: rgba(79,110,247,0.2);
+      animation: waveAnim 1.8s ease-in-out infinite;
+    }
+    .deco-wave-bar:nth-child(odd)  { animation-delay: calc(var(--i, 0) * 0.1s); }
+    .deco-wave-bar:nth-child(even) { animation-delay: calc(var(--i, 0) * 0.1s + 0.9s); }
+    @keyframes waveAnim {
+      0%, 100% { height: 20%; opacity: 0.4; }
+      50%       { height: 100%; opacity: 1; }
+    }
+  
+    /* ══ CHAT PAGE ══ */
+    .chat-page { min-height:100vh; padding:68px 0 0; display:flex; flex-direction:column; position:relative; z-index:1; }
+
+    .chat-header {
+      padding: 28px 32px 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,10,10,0.6);
+      backdrop-filter: blur(12px);
+      display: flex; align-items: center; gap: 16px;
+      position: sticky; top: 68px; z-index: 10;
+    }
+    .chat-avatar {
+      width: 42px; height: 42px; border-radius: 12px;
+      background: linear-gradient(135deg, rgba(79,110,247,0.3), rgba(79,110,247,0.1));
+      border: 1px solid rgba(79,110,247,0.35);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; position: relative;
+    }
+    .chat-avatar-pulse {
+      position: absolute; inset: -4px; border-radius: 15px;
+      border: 1px solid rgba(79,110,247,0.2);
+      animation: avatarPulse 2.5s ease-in-out infinite;
+    }
+    @keyframes avatarPulse {
+      0%,100% { opacity: 0.3; transform: scale(1); }
+      50%      { opacity: 1;   transform: scale(1.06); }
+    }
+    .chat-header-name { font-size: 0.92rem; font-weight: 800; letter-spacing: -0.2px; margin-bottom: 3px; }
+    .chat-header-status { display: flex; align-items: center; gap: 6px; font-size: 0.67rem; font-weight: 600; color: var(--muted); }
+    .chat-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); animation: statusBlink 2s ease-in-out infinite; }
+    @keyframes statusBlink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    .chat-disclaimer {
+      margin-left: auto;
+      background: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15);
+      border-radius: 8px; padding: 6px 12px;
+      font-size: 0.62rem; font-weight: 700; color: rgba(245,166,35,0.7);
+      letter-spacing: 0.4px; max-width: 220px; text-align: right; line-height: 1.4;
+    }
+
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 28px 32px;
+      display: flex; flex-direction: column; gap: 20px;
+      max-width: 760px; width: 100%; margin: 0 auto;
+      box-sizing: border-box;
+    }
+    .chat-messages::-webkit-scrollbar { width: 4px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+    .chat-msg { display: flex; gap: 12px; animation: fadeUp 0.3s ease both; }
+    .chat-msg.user { flex-direction: row-reverse; }
+
+    .msg-avatar {
+      width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 800;
+    }
+    .msg-avatar.bot { background: linear-gradient(135deg, rgba(79,110,247,0.25), rgba(79,110,247,0.1)); border: 1px solid rgba(79,110,247,0.25); color: var(--blue); }
+    .msg-avatar.user { background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: var(--muted); }
+
+    .msg-bubble {
+      max-width: 72%; padding: 13px 17px;
+      border-radius: 16px; font-size: 0.83rem; font-weight: 500; line-height: 1.65;
+    }
+    .chat-msg.bot  .msg-bubble { background: var(--bg-card); border: 1px solid var(--border); border-bottom-left-radius: 4px; color: var(--text); }
+    .chat-msg.user .msg-bubble { background: var(--blue); border-bottom-right-radius: 4px; color: white; }
+
+    .msg-bubble strong { font-weight: 800; }
+    .msg-bubble em { color: var(--yellow); font-style: normal; font-weight: 600; }
+
+    .msg-time { font-size: 0.58rem; color: var(--muted); font-weight: 600; margin-top: 5px; padding: 0 4px; }
+    .chat-msg.user .msg-time { text-align: right; }
+
+    /* Typing indicator */
+    .typing-indicator { display: flex; gap: 12px; animation: fadeUp 0.3s ease both; }
+    .typing-bubble {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; border-bottom-left-radius: 4px;
+      padding: 14px 18px; display: flex; align-items: center; gap: 5px;
+    }
+    .typing-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted); animation: typingBounce 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.30s; }
+    @keyframes typingBounce { 0%,60%,100%{transform:translateY(0);opacity:0.4;} 30%{transform:translateY(-5px);opacity:1;} }
+
+    /* Quick suggestion chips */
+    .chat-suggestions {
+      max-width: 760px; width: 100%; margin: 0 auto;
+      padding: 0 32px 16px; display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .suggestion-chip {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 7px 14px;
+      font-family: 'Montserrat', sans-serif; font-size: 0.72rem; font-weight: 700;
+      color: var(--muted); cursor: pointer; transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .suggestion-chip:hover { border-color: rgba(79,110,247,0.4); color: var(--blue); background: rgba(79,110,247,0.06); }
+
+    /* Input area */
+    .chat-input-area {
+      border-top: 1px solid var(--border);
+      background: rgba(10,10,10,0.7); backdrop-filter: blur(12px);
+      padding: 16px 32px 24px;
+      position: sticky; bottom: 0;
+    }
+    .chat-input-inner {
+      max-width: 760px; margin: 0 auto;
+      display: flex; gap: 10px; align-items: flex-end;
+    }
+    .chat-input {
+      flex: 1; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 13px 18px;
+      color: var(--text); font-family: 'Montserrat', sans-serif;
+      font-size: 0.83rem; font-weight: 500; outline: none;
+      transition: border-color 0.2s; resize: none; min-height: 48px; max-height: 140px;
+      line-height: 1.5;
+    }
+    .chat-input:focus { border-color: rgba(79,110,247,0.5); }
+    .chat-input::placeholder { color: var(--muted); }
+    .chat-send-btn {
+      width: 46px; height: 46px; flex-shrink: 0;
+      background: var(--blue); border: none; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+    }
+    .chat-send-btn:hover { opacity: 0.88; transform: scale(1.05); }
+    .chat-send-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+  
+    /* ══ SENSITIVITY FEEDBACK ROW ══ */
+    .feedback-row {
+      display: none;
+      flex-direction: column; gap: 16px;
+      padding: 20px 20px 18px;
+      margin-top: 16px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      animation: fadeUp 0.4s ease both;
+    }
+    .feedback-row.visible { display: flex; }
+
+    .feedback-header {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+    .feedback-header-title {
+      font-size: 0.82rem; font-weight: 800; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .feedback-header-title .fh-badge {
+      font-size: 0.55rem; font-weight: 900; letter-spacing: 1.2px;
+      background: rgba(79,110,247,0.15); border: 1px solid rgba(79,110,247,0.25);
+      color: var(--blue); border-radius: 4px; padding: 2px 7px; text-transform: uppercase;
+    }
+    .feedback-header-desc {
+      font-size: 0.7rem; color: var(--muted); font-weight: 500; line-height: 1.5; max-width: 420px;
+    }
+    .feedback-saved {
+      font-size: 0.62rem; font-weight: 800; color: #22c55e;
+      opacity: 0; transition: opacity 0.3s; white-space: nowrap;
+      background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25);
+      border-radius: 6px; padding: 4px 10px; flex-shrink: 0;
+    }
+    .feedback-saved.show { opacity: 1; }
+
+    /* Slider row */
+    .slider-row {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .feedback-label {
+      font-size: 0.65rem; font-weight: 700; color: var(--muted);
+      letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0; min-width: 80px;
+    }
+    .slider-track-wrap {
+      flex: 1; display: flex; align-items: center; gap: 10px;
+    }
+    .slider-end-label {
+      font-size: 0.58rem; font-weight: 600; color: var(--muted);
+      white-space: nowrap; letter-spacing: 0.3px;
+    }
+    .sensitivity-slider {
+      flex: 1; -webkit-appearance: none; appearance: none;
+      height: 5px; border-radius: 3px; outline: none; cursor: pointer;
+      background: linear-gradient(to right, #ef4444 0%, var(--blue) 50%, #22c55e 100%);
+      min-width: 0;
+    }
+    .sensitivity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: white; border: 2px solid var(--blue);
+      cursor: pointer; transition: transform 0.15s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    .sensitivity-slider::-webkit-slider-thumb:hover { transform: scale(1.25); }
+    .sensitivity-slider::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: white; border: 2px solid var(--blue); cursor: pointer;
+    }
+    .slider-value-chip {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 7px; padding: 5px 12px;
+      font-size: 0.68rem; font-weight: 800; color: var(--text);
+      white-space: nowrap; min-width: 110px; text-align: center;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+      flex-shrink: 0;
+    }
+    .slider-value-chip.chip-sensitive { border-color: rgba(239,68,68,0.35); color: #ef4444; }
+    .slider-value-chip.chip-tolerant  { border-color: rgba(34,197,94,0.35);  color: #22c55e; }
+
+    /* Bottom feedback row */
+    .feedback-bottom-row {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding-top: 12px; border-top: 1px solid var(--border);
+    }
+    .feedback-btns { display: flex; gap: 6px; }
+    .feedback-btn {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 7px 14px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.7rem; font-weight: 700; color: var(--muted);
+      cursor: pointer; transition: all 0.2s;
+    }
+    .feedback-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.15); }
+    .feedback-btn.selected-bad  { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4); color: #ef4444; }
+    .feedback-btn.selected-fine { background: rgba(34,197,94,0.10); border-color: rgba(34,197,94,0.35); color: #22c55e; }
+    .feedback-bottom-hint {
+      margin-left: auto; font-size: 0.62rem; color: rgba(255,255,255,0.2);
+      font-weight: 600; font-style: italic;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+
+  <!-- ══ LEFT AESTHETIC PANEL ══ -->
+  <div class="side-deco left">
+    <div class="scan-lines"></div>
+    <div class="scan-sweep"></div>
+    <div class="vert-rule"></div>
+    <div class="corner-tl"></div>
+    <div class="corner-bl"></div>
+
+    <div class="glitch-strip top">PHOTOSENSITIVE · ANALYSIS</div>
+    <div class="glitch-strip bottom">HARDING TEST · W3C · WCAG</div>
+
+    <div class="data-frags">
+      <div class="data-frag">
+        <div class="frag-dot blue"></div>
+        <div class="frag-line"></div>
+        <div class="frag-label">LUMA DELTA</div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-dot dim"></div>
+        <div class="frag-line"></div>
+        <div class="frag-val">ge 35 cd/m2</div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-dot yellow"></div>
+        <div class="frag-line"></div>
+        <div class="frag-label">FRAME RATE</div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-dot dim"></div>
+        <div class="frag-line"></div>
+        <div class="frag-val">3 Hz LIMIT</div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-dot blue"></div>
+        <div class="frag-line"></div>
+        <div class="frag-label">WCAG 2.3.1</div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-dot dim"></div>
+        <div class="frag-line"></div>
+        <div class="frag-val">ISO 9241-391</div>
+      </div>
+    </div>
+
+    <div class="deco-wave">
+      <div class="deco-wave-bar" style="height:30%;"></div>
+      <div class="deco-wave-bar" style="height:60%; animation-delay:0.1s;"></div>
+      <div class="deco-wave-bar" style="height:45%; animation-delay:0.2s;"></div>
+      <div class="deco-wave-bar" style="height:80%; animation-delay:0.3s;"></div>
+      <div class="deco-wave-bar" style="height:55%; animation-delay:0.4s;"></div>
+      <div class="deco-wave-bar" style="height:90%; animation-delay:0.5s;"></div>
+      <div class="deco-wave-bar" style="height:40%; animation-delay:0.6s;"></div>
+      <div class="deco-wave-bar" style="height:70%; animation-delay:0.7s;"></div>
+      <div class="deco-wave-bar" style="height:35%; animation-delay:0.8s;"></div>
+      <div class="deco-wave-bar" style="height:65%; animation-delay:0.9s;"></div>
+      <div class="deco-wave-bar" style="height:25%; animation-delay:1.0s;"></div>
+      <div class="deco-wave-bar" style="height:50%; animation-delay:1.1s;"></div>
+      <div class="deco-wave-bar" style="height:85%; animation-delay:1.2s;"></div>
+      <div class="deco-wave-bar" style="height:30%; animation-delay:1.3s;"></div>
+      <div class="deco-wave-bar" style="height:60%; animation-delay:1.4s;"></div>
+    </div>
+
+    <div class="pulse-nodes">
+      <div class="pulse-node">
+        <div class="node-ring blue"></div>
+        <div class="node-tag">Scanning</div>
+      </div>
+      <div class="pulse-node">
+        <div class="node-ring yellow"></div>
+        <div class="node-tag">Threshold</div>
+      </div>
+      <div class="pulse-node">
+        <div class="node-ring dim"></div>
+        <div class="node-tag">Protected</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RIGHT AESTHETIC PANEL ══ -->
+  <div class="side-deco right">
+    <div class="scan-lines"></div>
+    <div class="scan-sweep"></div>
+    <div class="vert-rule"></div>
+    <div class="corner-tr"></div>
+    <div class="corner-br"></div>
+
+    <div class="vert-text top">FLICKER SAFE SYSTEM</div>
+    <div class="vert-text bottom">EPILEPSY GUARD v2</div>
+
+    <div class="data-frags">
+      <div class="data-frag">
+        <div class="frag-label">SPATIAL FREQ</div>
+        <div class="frag-line"></div>
+        <div class="frag-dot blue"></div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-val">le 8 cycles/deg</div>
+        <div class="frag-line"></div>
+        <div class="frag-dot dim"></div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-label">RED FLASH</div>
+        <div class="frag-line"></div>
+        <div class="frag-dot yellow"></div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-val">MONITORED</div>
+        <div class="frag-line"></div>
+        <div class="frag-dot dim"></div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-label">ANALYSIS MODE</div>
+        <div class="frag-line"></div>
+        <div class="frag-dot blue"></div>
+      </div>
+      <div class="data-frag">
+        <div class="frag-val yellow">VECTORIZED</div>
+        <div class="frag-line"></div>
+        <div class="frag-dot dim"></div>
+      </div>
+    </div>
+
+    <div class="deco-wave">
+      <div class="deco-wave-bar" style="height:60%; animation-delay:1.4s;"></div>
+      <div class="deco-wave-bar" style="height:30%; animation-delay:1.3s;"></div>
+      <div class="deco-wave-bar" style="height:85%; animation-delay:1.2s;"></div>
+      <div class="deco-wave-bar" style="height:50%; animation-delay:1.1s;"></div>
+      <div class="deco-wave-bar" style="height:25%; animation-delay:1.0s;"></div>
+      <div class="deco-wave-bar" style="height:65%; animation-delay:0.9s;"></div>
+      <div class="deco-wave-bar" style="height:35%; animation-delay:0.8s;"></div>
+      <div class="deco-wave-bar" style="height:70%; animation-delay:0.7s;"></div>
+      <div class="deco-wave-bar" style="height:40%; animation-delay:0.6s;"></div>
+      <div class="deco-wave-bar" style="height:90%; animation-delay:0.5s;"></div>
+      <div class="deco-wave-bar" style="height:55%; animation-delay:0.4s;"></div>
+      <div class="deco-wave-bar" style="height:80%; animation-delay:0.3s;"></div>
+      <div class="deco-wave-bar" style="height:45%; animation-delay:0.2s;"></div>
+      <div class="deco-wave-bar" style="height:60%; animation-delay:0.1s;"></div>
+      <div class="deco-wave-bar" style="height:30%;"></div>
+    </div>
+
+    <div class="pulse-nodes">
+      <div class="pulse-node">
+        <div class="node-tag">Neural Net</div>
+        <div class="node-ring blue"></div>
+      </div>
+      <div class="pulse-node">
+        <div class="node-tag">Luminance</div>
+        <div class="node-ring yellow"></div>
+      </div>
+      <div class="pulse-node">
+        <div class="node-tag">Safe Output</div>
+        <div class="node-ring dim"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" onclick="showPage('results'); return false;">
+      <img class="logo-img" src="data:image/png;base64,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" alt="Flickr"/>
+    </a>
+    <div class="nav-links">
+      <a id="nav-about" onclick="showPage('about')">About</a>
+      <a id="nav-logger" onclick="requireLogin()" style="display:none">Seizure Log</a>
+      <div id="navUserArea">
+        <button class="nav-user-chip" onclick="showPage('logger')">
+          <div class="nav-user-dot"></div>
+          <span id="navUsername">User</span>
+        </button>
+      </div>
+      <button class="btn-soon" id="loginNavBtn" onclick="showPage('login')">Log In</button>
+    </div>
+  </nav>
+
+  <!-- ══ RESULTS PAGE ══ -->
+  <div id="page-results" class="page-view active">
+    <main class="results-page">
+
+      <!-- Gauge -->
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 200 105" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 15 100 A 85 85 0 0 1 185 100"
+                stroke="#1c1c1c" stroke-width="18" stroke-linecap="round" fill="none"/>
+          <path d="M 15 100 A 85 85 0 0 1 185 100"
+                stroke="url(#gaugeGrad)" stroke-width="18" stroke-linecap="round" fill="none"
+                stroke-dasharray="267" stroke-dashoffset="267"
+                style="animation: drawArc 1.2s cubic-bezier(0.4,0,0.2,1) 0.3s forwards;"/>
+          <g class="needle">
+            <line x1="100" y1="100" x2="100" y2="26" stroke="white" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="100" cy="100" r="7" fill="white"/>
+            <circle cx="100" cy="100" r="3.5" fill="var(--yellow)"/>
+          </g>
+          <defs>
+            <linearGradient id="gaugeGrad" x1="15" y1="100" x2="185" y2="100" gradientUnits="userSpaceOnUse">
+              <stop offset="0%"   stop-color="#4f6ef7"/>
+              <stop offset="55%"  stop-color="#f5a623"/>
+              <stop offset="100%" stop-color="#f5a623"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      <h1 class="result-title">Possible Epilepsy Triggers</h1>
+
+      <!-- Trigger count -->
+      <div class="trigger-count-wrap">
+        <div class="trigger-count-num" id="triggerCountNum">—</div>
+        <div class="trigger-count-label">triggers detected</div>
+      </div>
+
+      <!-- Risk badge -->
+      <div class="risk-badge caution" id="riskBadge">
+        <div class="risk-dot"></div>
+        <span id="riskLabel">Awaiting analysis</span>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row" id="statsRow">
+        <div class="stat-card">
+          <div class="stat-value" id="statDuration">—</div>
+          <div class="stat-label">Duration</div>
+        </div>
+        <div class="stat-card highlight">
+          <div class="stat-value" id="statTriggers">—</div>
+          <div class="stat-label">Triggers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statAffected">—</div>
+          <div class="stat-label">% Affected</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statDensity">—</div>
+          <div class="stat-label">Per Min</div>
+        </div>
+      </div>
+
+      <!-- Mini waveform -->
+      <div class="waveform-card" id="waveformCard">
+        <div class="waveform-header">
+          <div class="waveform-title">Trigger Timeline</div>
+          <div class="waveform-legend"><div class="waveform-legend-dot"></div> Flash event</div>
+        </div>
+        <div class="waveform-track" id="waveformTrack">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:0.72rem;color:var(--muted);font-weight:600;">Analyse a video to see the timeline</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SENSITIVITY FEEDBACK ROW ── -->
+      <div class="feedback-row" id="feedbackRow">
+
+        <!-- Header -->
+        <div class="feedback-header">
+          <div class="feedback-header-text">
+            <div class="feedback-header-title">
+              Personal Sensitivity
+              <span class="fh-badge">Adaptive</span>
+            </div>
+            <div class="feedback-header-desc">
+              Adjust how sensitive Flickr is for <em>you</em>. Higher sensitivity means more sections will be flagged and dampened. Your feedback after each video helps our model learn your personal threshold automatically.
+            </div>
+          </div>
+          <!-- Adaptive threshold pill — populated by JS after analysis -->
+          <div id="adaptiveThresholdPill" style="display:none;flex-shrink:0;text-align:center;">
+            <div style="font-size:0.55rem;font-weight:800;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">This video's threshold</div>
+            <div id="adaptiveThresholdVal" style="font-size:1.1rem;font-weight:900;color:var(--blue);letter-spacing:-0.5px;">—</div>
+            <div style="font-size:0.55rem;color:var(--muted);font-weight:600;margin-top:2px;">luminance score</div>
+          </div>
+          <span class="feedback-saved" id="feedbackSaved"></span>
+        </div>
+
+        <!-- Slider -->
+        <div class="slider-row">
+          <span class="feedback-label">My sensitivity</span>
+          <div class="slider-track-wrap">
+            <span class="slider-end-label">High</span>
+            <input type="range" class="sensitivity-slider" id="sensitivitySlider"
+              min="1" max="9" step="1" value="5"
+              oninput="onSliderInput(this.value)"
+              onchange="onSliderCommit(this.value)"/>
+            <span class="slider-end-label">Low</span>
+          </div>
+          <span class="slider-value-chip" id="sliderChip">Default</span>
+        </div>
+
+        <!-- Feedback buttons -->
+        <div class="feedback-bottom-row">
+          <span class="feedback-label">Did this video bother you?</span>
+          <div class="feedback-btns">
+            <button class="feedback-btn" id="fbBad" onclick="submitFeedback('bad')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Yes, bothered me
+            </button>
+            <button class="feedback-btn" id="fbFine" onclick="submitFeedback('fine')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Seemed fine
+            </button>
+          </div>
+          <span class="feedback-bottom-hint">Feedback trains your personal model</span>
+        </div>
+
+      </div>
+
+      <div class="result-sub" onclick="toggleExplainer()">
+        What does this result mean?
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+        </svg>
+      </div>
+
+      <!-- Explainer modal -->
+      <div class="modal-overlay" id="explainerOverlay" onclick="toggleExplainer()">
+        <div class="modal-box" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <div class="modal-title">What does this result mean?</div>
+            <button class="modal-close" onclick="toggleExplainer()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-section">
+              <div class="modal-section-icon blue">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2.2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div>
+                <div class="modal-section-title">Possible Epilepsy Triggers Detected</div>
+                <div class="modal-section-text">Your video contains one or more sequences where the screen flashes rapidly or changes brightness sharply. These patterns are known to potentially trigger seizures in people with photosensitive epilepsy — a condition affecting around 1 in 4,000 people.</div>
+              </div>
+            </div>
+            <div class="modal-section">
+              <div class="modal-section-icon yellow">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2.2">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+              </div>
+              <div>
+                <div class="modal-section-title">What triggers a seizure?</div>
+                <div class="modal-section-text">According to the Harding Test and WCAG 2.3.1 guidelines, content that flashes more than <strong>3 times per second</strong> or has high luminance contrast between flashes is considered a risk. Flickr flags any section of your video that exceeds these thresholds.</div>
+              </div>
+            </div>
+            <div class="modal-section">
+              <div class="modal-section-icon green">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22d37a" stroke-width="2.2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </div>
+              <div>
+                <div class="modal-section-title">What should you do?</div>
+                <div class="modal-section-text">Use <strong>Create Safe Video</strong> below to generate a treated version of your video. Choose <em>Low Tolerance</em> to cut the flagged sections entirely, or <em>High Tolerance</em> to reduce the brightness difference while keeping the content intact.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. CREATE SAFE VIDEO (now first) -->
+      <button class="btn-action blue btn-safe" id="safeBtn" onclick="toggleLinkSection()">
+        CREATE SAFE VIDEO
+        <svg class="chevron" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      <!-- Link input area -->
+      <div class="link-section" id="linkSection">
+        <div class="link-card" id="inputCard">
+
+          <!-- Tabs -->
+          <div class="input-tabs">
+            <button class="input-tab active" id="tabLink" onclick="switchTab('link')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+              Paste Link
+            </button>
+            <button class="input-tab" id="tabUpload" onclick="switchTab('upload')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload File
+            </button>
+          </div>
+
+          <!-- Link panel -->
+          <div id="panelLink">
+            <div class="link-card-title">Paste a YouTube or video link</div>
+            <div class="link-input-row">
+              <input class="link-input" id="videoUrl" type="url" placeholder="https://youtube.com/watch?v=..."/>
+              <button class="link-submit" onclick="submitLink()">Analyse</button>
+            </div>
+          </div>
+
+          <!-- Upload panel -->
+          <div id="panelUpload" style="display:none;">
+            <div class="link-card-title">Upload a video file</div>
+            <div class="upload-drop" id="dropZone" onclick="document.getElementById('fileInput').click()">
+              <div class="upload-drop-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2.2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="7 10 12 5 17 10"/>
+                  <line x1="12" y1="5" x2="12" y2="15"/>
+                </svg>
+              </div>
+              <div class="upload-drop-label">Drag &amp; drop or click to browse</div>
+              <div class="upload-drop-sub">MP4, MOV, AVI supported</div>
+              <input type="file" id="fileInput" accept="video/*" style="display:none" onchange="submitUpload(event)"/>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Tolerance Picker -->
+        <div class="tolerance-box" id="toleranceBox" style="display:none;">
+          <div class="tolerance-title">Choose processing mode</div>
+          <div class="tolerance-cards">
+            <div class="tolerance-card" id="cardLow" onclick="selectTolerance('low')">
+              <div class="tolerance-icon tol-low">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2.2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div class="tolerance-label">Low Tolerance</div>
+              <div class="tolerance-desc">Cuts out the flagged sections of the video entirely. Maximum safety — some content will be removed.</div>
+              <div class="tolerance-tag tol-tag-yellow">Removes triggers</div>
+            </div>
+            <div class="tolerance-card" id="cardHigh" onclick="selectTolerance('high')">
+              <div class="tolerance-icon tol-high">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2.2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M8 12h8M12 8v8"/>
+                </svg>
+              </div>
+              <div class="tolerance-label">High Tolerance</div>
+              <div class="tolerance-desc">Keeps the full video but reduces the luminance difference in flagged sections. No content is removed.</div>
+              <div class="tolerance-tag tol-tag-blue">Preserves content</div>
+            </div>
+          </div>
+          <div class="tolerance-actions">
+            <button class="tolerance-confirm" id="toleranceConfirm" onclick="confirmTolerance()" disabled>
+              Process Video
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+            <button class="try-again-btn" onclick="resetLink()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Spinner -->
+        <div class="processing-box" id="processingBox">
+          <div class="spinner"></div>
+          <div class="processing-title">Processing your video…</div>
+          <div class="processing-sub" id="processingStatus">Sending to server</div>
+        </div>
+
+        <!-- Result -->
+        <div class="result-box" id="resultBox">
+          <div class="result-box-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <div class="result-box-title">Safe video ready!</div>
+          <div class="result-box-sub" id="resultInfo"></div>
+          <a id="downloadBtn" class="download-btn" href="#" download>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download Safe Video
+          </a>
+          <button class="try-again-btn" onclick="resetLink()">Analyse another video</button>
+
+        </div>
+
+        <!-- Error -->
+        <div class="error-box" id="errorBox">
+          <div class="error-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div class="error-title">Something went wrong</div>
+          <div class="error-sub" id="errorMsg">Could not connect to the server. Please try again.</div>
+          <button class="try-again-btn" onclick="resetLink()">Try again</button>
+        </div>
+      </div>
+
+      <!-- 2. VIEW TIMESTAMPS (now second) -->
+      <button class="btn-action yellow btn-expand" id="tsBtn" onclick="toggleTimestamps()" style="margin-top:16px;">
+        VIEW TIME STAMPS
+        <svg class="chevron" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      <div class="timestamps-wrap" id="tsWrap">
+        <div class="player-card" id="timestampsCard">
+          <!-- Screen -->
+          <div class="player-screen" id="playerScreen">
+            <video class="player-video" id="playerVideo" preload="none" style="display:none;"></video>
+            <div class="player-placeholder" id="playerPlaceholder">
+              <div class="player-placeholder-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+              </div>
+              <div class="player-placeholder-text">Analyse a video to see trigger timeline</div>
+            </div>
+            <div class="player-flash-overlay" id="flashOverlay"></div>
+            <div class="player-time-badge" id="playerTimeBadge">0:00.0</div>
+            <div class="player-trigger-badge" id="triggerBadge">⚡ FLASH ZONE</div>
+          </div>
+
+          <!-- Controls -->
+          <div class="player-controls">
+            <!-- Timeline -->
+            <div class="player-timeline" id="playerTimeline">
+              <div class="timeline-track">
+                <div class="timeline-progress" id="timelineProgress"></div>
+              </div>
+              <div class="timeline-thumb" id="timelineThumb"></div>
+              <!-- markers injected here by JS -->
+            </div>
+            <!-- Bottom row -->
+            <div class="player-bottom">
+              <button class="play-btn" id="playBtn" onclick="togglePlay()">
+                <svg id="playIcon" width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+              </button>
+              <div class="player-time-display">
+                <span id="currentTimeDisp">0:00.0</span> / <span id="durationDisp" style="color:var(--muted)">--:--</span>
+              </div>
+              <div class="player-legend">
+                <div class="legend-dot"></div>
+                Flash trigger
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- How it works -->
+      <div class="how-preview">
+        <div class="how-preview-header">How Flickr works</div>
+        <div class="how-dots"><span></span><span></span><span></span></div>
+        <div class="how-bars">
+          <div class="how-bar w70"></div>
+          <div class="how-bar w45"></div>
+          <div class="how-bar w85"></div>
+        </div>
+        <div class="preview-img-row">
+          <div class="preview-thumb">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          </div>
+          <div class="preview-text">
+            We analyse your video frame-by-frame for flashing patterns that may trigger photosensitive epilepsy.
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+
+  <!-- ══ LOGIN PAGE ══ -->
+  <div id="page-login" class="page-view">
+    <div class="login-page">
+      <div class="login-card">
+        <div class="login-badge">Seizure Logger</div>
+        <div class="login-title">Welcome back</div>
+        <div class="login-sub">Sign in to access your personal seizure log and reports.</div>
+        <div class="login-field">
+          <label class="login-label" for="loginUser">Username</label>
+          <input class="login-input" id="loginUser" type="text" placeholder="Enter your username" autocomplete="username"/>
+        </div>
+        <div class="login-field">
+          <label class="login-label" for="loginPass">Password</label>
+          <input class="login-input" id="loginPass" type="password" placeholder="Enter your password" autocomplete="current-password"/>
+        </div>
+        <button class="login-btn" onclick="doLogin()">Sign In</button>
+        <div class="login-error" id="loginError">Incorrect username or password. Please try again.</div>
+        <div class="login-hint">Demo accounts: alex / sarah / jordan</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SEIZURE LOGGER PAGE ══ -->
+  <div id="page-logger" class="page-view">
+    <div class="logger-page">
+
+      <div class="logger-header">
+        <div class="logger-title-block">
+          <div class="logger-page-label">Personal Health Log</div>
+          <div class="logger-page-title">Seizure Tracker</div>
+        </div>
+        <div class="logger-user-chip">
+          <div class="logger-user-dot"></div>
+          <span id="loggerUsername">User</span>
+          <button class="logger-logout" onclick="doLogout()">Sign out</button>
+        </div>
+      </div>
+
+      <!-- Sensitivity card -->
+      <div class="sensitivity-card" id="sensitivityCard">
+        <div class="sensitivity-left">
+          <div class="sensitivity-label">Your Sensitivity Profile</div>
+          <div class="sensitivity-value" id="sensitivityValueText">Calibrating...</div>
+          <div class="sensitivity-sub">Adapts based on your video feedback</div>
+        </div>
+        <div class="sensitivity-bar-wrap">
+          <div class="sensitivity-bar-track">
+            <div class="sensitivity-bar-fill" id="sensitivityBarFill" style="width:50%"></div>
+          </div>
+          <div class="sensitivity-desc" id="sensitivityDescText">Default threshold</div>
+        </div>
+      </div>
+
+      <!-- Big red log button -->
+      <button class="log-seizure-btn" onclick="logSeizure()">
+        <div class="log-btn-left">
+          <div class="log-btn-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </div>
+          <div>
+            <div class="log-btn-title">Log Seizure Event</div>
+            <div class="log-btn-sub">Tap to record right now</div>
+          </div>
+        </div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </button>
+
+      <!-- Optional note -->
+      <div class="log-note-row">
+        <input class="log-note-input" id="seizureNote" type="text" placeholder="Add a note (optional — e.g. 'after flashing screen', 'mild')..."/>
+      </div>
+
+      <!-- Period filter -->
+      <div class="period-tabs">
+        <button class="period-tab active" onclick="setPeriod('week', this)">Last 7 days</button>
+        <button class="period-tab" onclick="setPeriod('month', this)">Last 30 days</button>
+        <button class="period-tab" onclick="setPeriod('3months', this)">Last 3 months</button>
+        <button class="period-tab" onclick="setPeriod('all', this)">All time</button>
+      </div>
+
+      <!-- Stats strip -->
+      <div class="logger-stats">
+        <div class="logger-stat red">
+          <div class="ls-val" id="statTotal">0</div>
+          <div class="ls-label">Events</div>
+        </div>
+        <div class="logger-stat">
+          <div class="ls-val" id="statAvgPerWeek">0</div>
+          <div class="ls-label">Per week</div>
+        </div>
+        <div class="logger-stat">
+          <div class="ls-val" id="statLastEvent">—</div>
+          <div class="ls-label">Last event</div>
+        </div>
+      </div>
+
+      <!-- Events list -->
+      <div class="events-card">
+        <div class="events-card-header">
+          <div class="events-card-title">Event History</div>
+          <button class="report-btn" onclick="openReport()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            Generate Report
+          </button>
+        </div>
+        <div class="events-list" id="eventsList">
+          <div class="events-empty">No events logged yet. Hit the button above when you have a seizure.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ REPORT MODAL ══ -->
+  <div class="report-modal-overlay" id="reportOverlay" onclick="closeReport()">
+    <div class="report-modal" onclick="event.stopPropagation()">
+      <div class="report-modal-head">
+        <div class="report-modal-title">Seizure Report</div>
+        <button class="report-modal-close" onclick="closeReport()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="report-modal-body" id="reportBody"></div>
+    </div>
+  </div>
+  <!-- ══ ABOUT PAGE ══ -->
+  <div id="page-about" class="page-view">
+    <div class="about-page">
+
+      <div class="about-hero">
+        
+        <h1 class="about-title">
+          <span class="meet-word">Meet Flickr</span>
+        </h1>
+        <p class="about-subtitle">Test any video for possible epileptic content.</p>
+        <p class="about-tagline">
+          Paste a YouTube URL or upload your own file. Flickr will tell you the number of possible epilepsy triggers and provide a safer version free to download.
+        </p>
+        <a href="https://www.flikcerapp.com" target="_blank" class="about-link-btn">
+          Visit flikcerapp.com
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+            <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </a>
+      </div>
+
+      <div class="about-divider"></div>
+
+      <div class="about-features">
+        <div class="feature-card">
+          <div class="feature-icon blue">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2.2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </div>
+          <div class="feature-title">Trigger Detection</div>
+          <div class="feature-desc">Identifies the exact number and timestamps of epilepsy-inducing flash events in any video.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon yellow">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2.2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <div class="feature-title">Safe Video Output</div>
+          <div class="feature-desc">Generates a safer version of your video with flagged sequences treated — free to download instantly.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon white">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+          </div>
+          <div class="feature-title">Real-Time Algorithm</div>
+          <div class="feature-desc">Built with Python, machine learning and computer vision — optimised for real-time public use.</div>
+        </div>
+      </div>
+
+      <div class="about-research">
+        <div class="research-card">
+          <div class="research-label">Research Paper</div>
+          <div class="research-title">The Science Behind Flickr</div>
+          <div class="research-abstract-label">Abstract</div>
+          <p class="research-abstract">
+            Video content with fast luminance variations, or with spatial patterns of high contrast — referred to as epileptogenic visual content — may induce seizures in viewers with photosensitive epilepsy, and even cause discomfort in users not affected by this condition. Flickr is a web app in the form of a website and Chrome extension which aims to resolve epileptic content in videos. It provides the number of possible triggers for a seizure, the timestamps for these triggers, and a safer version of the video free to download. The algorithm is written in Python and uses machine learning and computer vision. A key aspect of the algorithm is its computational efficiency, allowing real-time implementation for public users.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ══ CHAT PAGE ══ -->
+  <div id="page-chat" class="page-view">
+    <div class="chat-page">
+
+      <!-- Header -->
+      <div class="chat-header">
+        <div class="chat-avatar">
+          <div class="chat-avatar-pulse"></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+        </div>
+        <div class="chat-header-info">
+          <div class="chat-header-name">Flickr Support AI</div>
+          <div class="chat-header-status">
+            <div class="chat-status-dot"></div>
+            Epilepsy information &amp; support
+          </div>
+        </div>
+        <div class="chat-disclaimer">Not a medical diagnosis tool. Always consult your neurologist.</div>
+      </div>
+
+      <!-- Messages -->
+      <div class="chat-messages" id="chatMessages"></div>
+
+      <!-- Quick suggestions -->
+      <div class="chat-suggestions" id="chatSuggestions">
+        <button class="suggestion-chip" onclick="sendSuggestion(this)">What types of seizures are there?</button>
+        <button class="suggestion-chip" onclick="sendSuggestion(this)">What are common epilepsy triggers?</button>
+        <button class="suggestion-chip" onclick="sendSuggestion(this)">How do I track my seizures?</button>
+        <button class="suggestion-chip" onclick="sendSuggestion(this)">When should I see a neurologist?</button>
+        <button class="suggestion-chip" onclick="sendSuggestion(this)">What is photosensitive epilepsy?</button>
+        <button class="suggestion-chip" onclick="sendSuggestion(this)">What should I tell my doctor?</button>
+      </div>
+
+      <!-- Input -->
+      <div class="chat-input-area">
+        <div class="chat-input-inner">
+          <textarea class="chat-input" id="chatInput" placeholder="Ask anything about epilepsy, seizures, or managing your condition..." rows="1"></textarea>
+          <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const BACKEND = 'http://localhost:8000';
+
+    // ── EXPLAINER MODAL ──
+    function toggleExplainer() {
+      document.getElementById('explainerOverlay').classList.toggle('open');
+    }
+    // Close on Escape key
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') document.getElementById('explainerOverlay').classList.remove('open');
+    });
+
+    // ── PAGE SWITCHING ──
+    function showPage(name) {
+      document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
+      document.getElementById('page-' + name).classList.add('active');
+      document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+      if (name === 'about') document.getElementById('nav-about').classList.add('active');
+      if (name === 'chat') {
+        document.getElementById('nav-chat').classList.add('active');
+        if (!document.getElementById('chatMessages').hasChildNodes()) initChat();
+      }
+      window.scrollTo(0, 0);
+    }
+
+    // ── TIMESTAMPS TOGGLE ──
+    function toggleTimestamps() {
+      document.getElementById('tsBtn').classList.toggle('open');
+      document.getElementById('tsWrap').classList.toggle('open');
+    }
+
+    // ── LINK SECTION TOGGLE ──
+    function toggleLinkSection() {
+      document.getElementById('safeBtn').classList.toggle('open');
+      document.getElementById('linkSection').classList.toggle('open');
+    }
+
+    // ── SHOW A SUB-STATE ──
+    function showSubState(id) {
+      ['processingBox','resultBox','errorBox'].forEach(s => {
+        document.getElementById(s).style.display = s === id ? 'block' : 'none';
+      });
+    }
+    function hideAllSubStates() {
+      ['processingBox','resultBox','errorBox'].forEach(s => {
+        document.getElementById(s).style.display = 'none';
+      });
+    }
+
+    // ── RESET ──
+    let pendingFile = null;
+    let pendingUrl  = null;
+    let chosenTolerance = null;
+
+    function resetLink() {
+      document.getElementById('videoUrl').value = '';
+      if (document.getElementById('fileInput')) document.getElementById('fileInput').value = '';
+      document.getElementById('inputCard').style.display = 'block';
+      document.getElementById('toleranceBox').style.display = 'none';
+      pendingFile = null; pendingUrl = null; chosenTolerance = null;
+      // reset card selection
+      document.getElementById('cardLow').classList.remove('selected-low');
+      document.getElementById('cardHigh').classList.remove('selected-high');
+      document.getElementById('toleranceConfirm').classList.remove('ready');
+      hideAllSubStates();
+    }
+
+    // ── SHOW TOLERANCE PICKER ──
+    function showTolerancePicker() {
+      document.getElementById('inputCard').style.display = 'none';
+      document.getElementById('toleranceBox').style.display = 'block';
+      chosenTolerance = null;
+      document.getElementById('cardLow').classList.remove('selected-low');
+      document.getElementById('cardHigh').classList.remove('selected-high');
+      document.getElementById('toleranceConfirm').classList.remove('ready');
+    }
+
+    function selectTolerance(val) {
+      chosenTolerance = val;
+      document.getElementById('cardLow').classList.toggle('selected-low',  val === 'low');
+      document.getElementById('cardHigh').classList.toggle('selected-high', val === 'high');
+      document.getElementById('toleranceConfirm').classList.add('ready');
+      document.getElementById('toleranceConfirm').disabled = false;
+    }
+
+    function confirmTolerance() {
+      if (!chosenTolerance) return;
+      document.getElementById('toleranceBox').style.display = 'none';
+      if (pendingFile) sendFile(pendingFile);
+      else if (pendingUrl) sendUrl(pendingUrl);
+    }
+
+    // ── TAB SWITCHING ──
+    function switchTab(tab) {
+      document.getElementById('panelLink').style.display   = tab === 'link'   ? 'block' : 'none';
+      document.getElementById('panelUpload').style.display = tab === 'upload' ? 'block' : 'none';
+      document.getElementById('tabLink').classList.toggle('active',   tab === 'link');
+      document.getElementById('tabUpload').classList.toggle('active', tab === 'upload');
+    }
+
+    // ── FILE UPLOAD SUBMIT ──
+    function submitUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      pendingFile = file;
+      showTolerancePicker();
+    }
+
+    async function sendFile(file) {
+      showSubState('processingBox');
+      document.getElementById('processingStatus').textContent = 'Uploading ' + file.name + '…';
+      const formData = new FormData();
+      formData.append('video', file);
+      formData.append('tolerance', chosenTolerance);
+      var _t = getUserThreshold();
+      formData.append('threshold', _t);
+      var _dp = getDampenParams(_t);
+      formData.append('dim_factor', _dp.dim_factor);
+      formData.append('sat_factor', _dp.sat_factor);
+      formData.append('blur_px',    _dp.blur_px);
+      try {
+        document.getElementById('processingStatus').textContent = 'Analysing and creating safe video… (this may take a minute)';
+        const response = await fetch(BACKEND + '/create-safe', {
+          method: 'POST',
+          body: formData
+        });
+        if (!response.ok) throw new Error('Server returned ' + response.status);
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        handleResult(data);
+      } catch (err) {
+        document.getElementById('errorMsg').textContent = err.message || 'Could not connect to the server.';
+        showSubState('errorBox');
+      }
+    }
+
+    // ── PLAYER STATE ──
+    let playerTimestamps = [];
+    let playerDuration   = 0;
+    let playerFile       = null;
+    let rafId            = null;
+    let lastAdaptiveThreshold = null;  // set after each analysis
+
+    function formatTime(sec) {
+      const s = parseFloat(sec);
+      const m = Math.floor(s / 60);
+      const rem = (s % 60).toFixed(1);
+      return m > 0 ? m + ':' + rem.padStart(4,'0') : rem + 's';
+    }
+
+    // ── SHARED RESULT HANDLER ──
+    function handleResult(data) {
+      const timestamps = (data.timestamps && Array.isArray(data.timestamps)) ? data.timestamps : [];
+      const triggerCount = data.triggers ?? timestamps.length;
+      const cutIntervals = data.cut_intervals || [];
+      playerTimestamps = timestamps.map(Number);
+
+      // Store the adaptive threshold this video was analysed with
+      if (data.adaptive_threshold != null) {
+        lastAdaptiveThreshold = parseFloat(data.adaptive_threshold);
+        const pill = document.getElementById('adaptiveThresholdPill');
+        const val  = document.getElementById('adaptiveThresholdVal');
+        if (pill) pill.style.display = 'block';
+        if (val)  val.textContent = lastAdaptiveThreshold.toFixed(1);
+        // Persist per-user if logged in
+        if (currentUser) {
+          try {
+            var stored = JSON.parse(localStorage.getItem('flickr_adaptive_thresholds') || '{}');
+            if (!stored[currentUser]) stored[currentUser] = [];
+            stored[currentUser].unshift({ threshold: lastAdaptiveThreshold, ts: Date.now() });
+            stored[currentUser] = stored[currentUser].slice(0, 20); // keep last 20
+            localStorage.setItem('flickr_adaptive_thresholds', JSON.stringify(stored));
+          } catch(e) {}
+        }
+      }
+
+      // ── Trigger count big number ──
+      document.getElementById('triggerCountNum').textContent = triggerCount;
+
+      // ── Risk badge ──
+      const badge = document.getElementById('riskBadge');
+      const label = document.getElementById('riskLabel');
+      badge.className = 'risk-badge';
+      if (triggerCount === 0) {
+        badge.classList.add('safe');
+        label.textContent = 'No risk detected';
+      } else if (triggerCount < 10) {
+        badge.classList.add('caution');
+        label.textContent = 'Low risk';
+      } else if (triggerCount < 50) {
+        badge.classList.add('caution');
+        label.textContent = 'Moderate risk';
+      } else {
+        badge.classList.add('danger');
+        label.textContent = 'High risk';
+      }
+
+      // ── Stats row ──
+      const dur = playerDuration || estimateDuration(playerTimestamps);
+      const durMins = dur / 60;
+      const totalCut = cutIntervals.reduce((s, iv) => s + (iv.end - iv.start), 0);
+      const pctAffected = dur > 0 ? ((totalCut / dur) * 100).toFixed(1) : '—';
+      const perMin = durMins > 0 ? (triggerCount / durMins).toFixed(1) : '—';
+
+      document.getElementById('statDuration').textContent = dur > 0 ? formatTime(dur) : '—';
+      document.getElementById('statTriggers').textContent = triggerCount;
+      document.getElementById('statAffected').textContent = pctAffected !== '—' ? pctAffected + '%' : '—';
+      document.getElementById('statDensity').textContent  = perMin !== '—' ? perMin : '—';
+
+      // ── Mini waveform ──
+      buildWaveform(playerTimestamps, cutIntervals, dur);
+
+      // ── Result info text ──
+      document.getElementById('resultInfo').textContent =
+        triggerCount + ' possible trigger' + (triggerCount !== 1 ? 's' : '') + ' detected.';
+
+      // ── Timeline markers ──
+      buildTimeline(playerTimestamps, playerDuration || estimateDuration(playerTimestamps));
+
+      // Auto-open the timestamps panel
+      document.getElementById('tsBtn').classList.add('open');
+      document.getElementById('tsWrap').classList.add('open');
+
+      // If we have the uploaded file, load it into the player
+      if (pendingFile) loadVideoIntoPlayer(pendingFile);
+
+      const dlBtn = document.getElementById('downloadBtn');
+      if (data.download_url) {
+        dlBtn.href = BACKEND + data.download_url;
+        dlBtn.style.display = 'inline-flex';
+      } else {
+        dlBtn.style.display = 'none';
+      }
+      showSubState('resultBox');
+      showFeedbackRow(triggerCount);
+      if (currentUser) {
+        document.getElementById('feedbackCard').style.display = 'block';
+        document.getElementById('feedbackThanks').style.display = 'none';
+        document.querySelectorAll('.feedback-btn').forEach(function(b){ b.disabled = false; b.style.opacity = '1'; });
+      }
+    }
+
+    // ── BUILD MINI WAVEFORM ──
+    function buildWaveform(timestamps, cutIntervals, duration) {
+      const track = document.getElementById('waveformTrack');
+      if (!timestamps.length || !duration) return;
+
+      const BARS = 80;
+      const bucketSize = duration / BARS;
+
+      // count triggers per bucket
+      const counts = new Array(BARS).fill(0);
+      timestamps.forEach(ts => {
+        const b = Math.min(Math.floor(ts / bucketSize), BARS - 1);
+        counts[b]++;
+      });
+
+      // which buckets are in cut intervals
+      const flagged = new Array(BARS).fill(false);
+      cutIntervals.forEach(iv => {
+        const s = Math.floor(iv.start / bucketSize);
+        const e = Math.min(Math.ceil(iv.end / bucketSize), BARS - 1);
+        for (let i = s; i <= e; i++) flagged[i] = true;
+      });
+
+      const maxCount = Math.max(...counts, 1);
+      track.innerHTML = '';
+      counts.forEach((c, i) => {
+        const bar = document.createElement('div');
+        bar.className = 'waveform-bar' + (flagged[i] ? ' flagged' : '');
+        const heightPct = c > 0 ? Math.max(20, (c / maxCount) * 100) : 8;
+        bar.style.left   = (i / BARS * 100) + '%';
+        bar.style.height = heightPct + '%';
+        track.appendChild(bar);
+      });
+    }
+
+    function estimateDuration(timestamps) {
+      if (!timestamps.length) return 100;
+      return Math.max(...timestamps) * 1.15;
+    }
+
+    // ── LOAD VIDEO INTO PLAYER ──
+    function loadVideoIntoPlayer(file) {
+      const video = document.getElementById('playerVideo');
+      const ph    = document.getElementById('playerPlaceholder');
+      const url   = URL.createObjectURL(file);
+      video.src   = url;
+      video.style.display = 'block';
+      ph.style.display    = 'none';
+
+      video.addEventListener('loadedmetadata', () => {
+        playerDuration = video.duration;
+        document.getElementById('durationDisp').textContent = formatTime(playerDuration);
+        document.getElementById('statDuration').textContent = formatTime(playerDuration);
+        // recalculate density now we have real duration
+        const durMins = playerDuration / 60;
+        if (durMins > 0 && playerTimestamps.length > 0) {
+          document.getElementById('statDensity').textContent = (playerTimestamps.length / durMins).toFixed(1);
+        }
+        buildTimeline(playerTimestamps, playerDuration);
+        startRaf();
+      }, { once: true });
+    }
+
+    // ── BUILD TIMELINE MARKERS ──
+    function clusterTimestamps(timestamps, gapSec) {
+      // Group timestamps within gapSec of each other → use midpoint as representative
+      if (!timestamps.length) return [];
+      const sorted = [...timestamps].sort((a, b) => a - b);
+      const clusters = [];
+      let group = [sorted[0]];
+      for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i] - sorted[i - 1] <= gapSec) {
+          group.push(sorted[i]);
+        } else {
+          clusters.push(group);
+          group = [sorted[i]];
+        }
+      }
+      clusters.push(group);
+      // Each cluster → midpoint time + count
+      return clusters.map(g => ({
+        time: g[Math.floor(g.length / 2)],
+        count: g.length,
+        start: g[0],
+        end: g[g.length - 1],
+      }));
+    }
+
+    function buildTimeline(timestamps, duration) {
+      const track = document.querySelector('.timeline-track');
+      track.querySelectorAll('.timeline-marker').forEach(m => m.remove());
+
+      if (!duration || duration <= 0 || !timestamps.length) return;
+
+      // Cluster nearby triggers (within 1.5s of each other)
+      const clusters = clusterTimestamps(timestamps, 1.5);
+
+      clusters.forEach(cl => {
+        const pct = Math.min((cl.time / duration) * 100, 100);
+        const marker = document.createElement('div');
+        marker.className = 'timeline-marker';
+        marker.style.left = pct + '%';
+        // Wider & brighter if cluster has many triggers
+        if (cl.count > 3) marker.style.width = '6px';
+        if (cl.count > 6) marker.style.width = '8px';
+        const label = cl.count > 1
+          ? formatTime(cl.start) + '–' + formatTime(cl.end) + ' (' + cl.count + '×)'
+          : formatTime(cl.time);
+        marker.setAttribute('data-time', label);
+        marker.setAttribute('data-sec', cl.time);
+        marker.addEventListener('click', (e) => {
+          e.stopPropagation();
+          seekTo(cl.start);
+        });
+        track.appendChild(marker);
+      });
+    }
+
+    // ── RAF LOOP ──
+    function startRaf() {
+      if (rafId) cancelAnimationFrame(rafId);
+      function tick() {
+        updatePlayerUI();
+        rafId = requestAnimationFrame(tick);
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function updatePlayerUI() {
+      const video = document.getElementById('playerVideo');
+      if (!video || video.readyState < 1) return;
+
+      const cur = video.currentTime;
+      const dur = video.duration || playerDuration || 1;
+      const pct = (cur / dur) * 100;
+
+      document.getElementById('timelineProgress').style.width  = pct + '%';
+      document.getElementById('timelineThumb').style.left      = pct + '%';
+      document.getElementById('playerTimeBadge').textContent   = formatTime(cur);
+      document.getElementById('currentTimeDisp').textContent   = formatTime(cur);
+
+      // Flash overlay — show if within 0.5s of a trigger
+      const nearTrigger = playerTimestamps.some(ts => Math.abs(cur - ts) < 0.8);
+      document.getElementById('flashOverlay').classList.toggle('flash', nearTrigger);
+      document.getElementById('triggerBadge').classList.toggle('visible', nearTrigger);
+
+      // Play/pause icon
+      const icon = document.getElementById('playIcon');
+      if (video.paused) {
+        icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+      } else {
+        icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+      }
+    }
+
+    // ── PLAY / PAUSE ──
+    function togglePlay() {
+      const video = document.getElementById('playerVideo');
+      if (!video.src) return;
+      video.paused ? video.play() : video.pause();
+    }
+
+    // ── SEEK ──
+    function seekTo(sec) {
+      const video = document.getElementById('playerVideo');
+      if (video.src) { video.currentTime = sec; }
+    }
+
+    // ── TIMELINE CLICK SEEK ──
+    document.addEventListener('DOMContentLoaded', () => {
+      const tl = document.getElementById('playerTimeline');
+      if (tl) {
+        tl.addEventListener('click', (e) => {
+          const rect = tl.getBoundingClientRect();
+          const pct  = (e.clientX - rect.left) / rect.width;
+          const video = document.getElementById('playerVideo');
+          const dur   = video.duration || playerDuration || 1;
+          if (video.src) video.currentTime = pct * dur;
+        });
+      }
+    });
+
+    // ── SUBMIT LINK ──
+    async function submitLink() {
+      const url = document.getElementById('videoUrl').value.trim();
+      if (!url) {
+        document.getElementById('videoUrl').focus();
+        return;
+      }
+      pendingUrl = url;
+      showTolerancePicker();
+    }
+
+    async function sendUrl(url) {
+      showSubState('processingBox');
+      document.getElementById('processingStatus').textContent = 'Downloading video…';
+      try {
+        document.getElementById('processingStatus').textContent = 'Downloading & analysing… (this may take a minute)';
+        const formData = new FormData();
+        formData.append('url', url);
+        formData.append('tolerance', chosenTolerance || 'low');
+        var _t2 = getUserThreshold();
+        formData.append('threshold', _t2);
+        var _dp2 = getDampenParams(_t2);
+        formData.append('dim_factor', _dp2.dim_factor);
+        formData.append('sat_factor', _dp2.sat_factor);
+        formData.append('blur_px',    _dp2.blur_px);
+        const response = await fetch(BACKEND + '/create-safe', {
+          method: 'POST',
+          body: formData
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(errText || 'Server returned ' + response.status);
+        }
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        handleResult(data);
+      } catch (err) {
+        console.error(err);
+        document.getElementById('errorMsg').textContent =
+          err.message || 'Could not connect to the server. Please try again.';
+        showSubState('errorBox');
+      }
+    }
+
+    document.getElementById('videoUrl').addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitLink();
+    });
+
+    // ── DRAG & DROP ──
+    document.addEventListener('DOMContentLoaded', () => {
+      const dz = document.getElementById('dropZone');
+      if (!dz) return;
+      dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('drag-over'); });
+      dz.addEventListener('dragleave', ()  => dz.classList.remove('drag-over'));
+      dz.addEventListener('drop', e => {
+        e.preventDefault(); dz.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) { document.getElementById('fileInput').files = e.dataTransfer.files; submitUpload({target:{files:e.dataTransfer.files}}); }
+      });
+    });
+
+    // ── BAR ANIMATION OBSERVER ──
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('w70','w45','w85'); });
+    }, { threshold: 0.3 });
+    document.querySelectorAll('.how-bar').forEach(b => observer.observe(b));
+
+    // ══════════════════════════════
+    // AUTH — 3 fake hardcoded users
+    // ══════════════════════════════
+    const USERS = {
+      alex:   { password: 'flickr123', displayName: 'Alex' },
+      sarah:  { password: 'safe456',   displayName: 'Sarah' },
+      jordan: { password: 'log789',    displayName: 'Jordan' },
+    };
+
+    let currentUser = null;
+    let currentPassword = null;
+    let userSensitivity = 0.5;
+    let seizureEvents = {};   // { username: [ {timestamp, note} ] }
+    let currentPeriod = 'week';
+
+    // Load persisted data on boot
+    try {
+      const saved = localStorage.getItem('flickr_events');
+      if (saved) seizureEvents = JSON.parse(saved);
+    } catch(e) {}
+
+    function saveEvents() {
+      localStorage.setItem('flickr_events', JSON.stringify(seizureEvents));
+    }
+
+    function doLogin() {
+      const user = document.getElementById('loginUser').value.trim().toLowerCase();
+      const pass = document.getElementById('loginPass').value;
+      const err  = document.getElementById('loginError');
+
+      if (USERS[user] && USERS[user].password === pass) {
+        currentUser     = user;
+        currentPassword = pass;
+        err.style.display = 'none';
+        document.getElementById('navUsername').textContent    = USERS[user].displayName;
+        document.getElementById('loggerUsername').textContent = USERS[user].displayName;
+        document.getElementById('navUserArea').style.display  = 'flex';
+        document.getElementById('loginNavBtn').style.display  = 'none';
+        document.getElementById('nav-logger').style.display   = 'inline';
+        // Immediately update sensitivity card from local profile — no backend wait
+        var localProfile = getProfile(user);
+        recomputeThreshold(localProfile);
+        userSensitivity = localProfile.computedThreshold;
+        updateSensitivityUI({ sensitivity: localProfile.computedThreshold, feedback_count: localProfile.feedbackLog ? localProfile.feedbackLog.length : 0 });
+        showPage('logger');
+        renderEvents();
+        fetchSensitivity();
+      } else {
+        err.style.display = 'block';
+        document.getElementById('loginPass').value = '';
+      }
+    }
+
+    function doLogout() {
+      currentUser = null;
+      currentPassword = null;
+      userSensitivity = 0.5;
+      document.getElementById('navUserArea').style.display = 'none';
+      document.getElementById('loginNavBtn').style.display = 'inline-block';
+      document.getElementById('nav-logger').style.display  = 'none';
+      document.getElementById('loginUser').value = '';
+      document.getElementById('loginPass').value = '';
+      showPage('results');
+    }
+
+    function requireLogin() {
+      if (!currentUser) { showPage('login'); return; }
+      showPage('logger');
+      renderEvents();
+    }
+
+    // Enter key on login
+    document.addEventListener('DOMContentLoaded', () => {
+      ['loginUser','loginPass'].forEach(id => {
+        document.getElementById(id)?.addEventListener('keydown', e => {
+          if (e.key === 'Enter') doLogin();
+        });
+      });
+      document.getElementById('seizureNote')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') logSeizure();
+      });
+    });
+
+    // ══════════════════════════════
+    // SEIZURE LOGGING
+    // ══════════════════════════════
+    function logSeizure() {
+      if (!currentUser) return;
+      const note = document.getElementById('seizureNote').value.trim();
+      if (!seizureEvents[currentUser]) seizureEvents[currentUser] = [];
+      seizureEvents[currentUser].unshift({ timestamp: Date.now(), note });
+      saveEvents();
+      document.getElementById('seizureNote').value = '';
+
+      // Flash confirmation
+      const btn = document.querySelector('.log-seizure-btn');
+      btn.style.background = 'linear-gradient(135deg,#22c55e,#16a34a)';
+      btn.querySelector('.log-btn-title').textContent = 'Logged!';
+      setTimeout(() => {
+        btn.style.background = 'linear-gradient(135deg,#ef4444,#dc2626)';
+        btn.querySelector('.log-btn-title').textContent = 'Log Seizure Event';
+      }, 1200);
+
+      renderEvents();
+    }
+
+    function setPeriod(p, el) {
+      currentPeriod = p;
+      document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      renderEvents();
+    }
+
+    function getFilteredEvents() {
+      if (!currentUser) return [];
+      const all = seizureEvents[currentUser] || [];
+      const now = Date.now();
+      const cutoffs = {
+        week:    7  * 86400000,
+        month:   30 * 86400000,
+        '3months': 90 * 86400000,
+        all: Infinity,
+      };
+      const cutoff = cutoffs[currentPeriod] || Infinity;
+      return all.filter(e => (now - e.timestamp) <= cutoff);
+    }
+
+    function timeAgo(ts) {
+      const diff = Date.now() - ts;
+      const mins  = Math.floor(diff / 60000);
+      const hours = Math.floor(diff / 3600000);
+      const days  = Math.floor(diff / 86400000);
+      if (mins < 1)   return 'Just now';
+      if (mins < 60)  return mins + 'm ago';
+      if (hours < 24) return hours + 'h ago';
+      if (days < 7)   return days + 'd ago';
+      return Math.floor(days / 7) + 'w ago';
+    }
+
+    function formatDate(ts) {
+      return new Date(ts).toLocaleDateString('en-GB', {
+        weekday:'short', day:'numeric', month:'short',
+        hour:'2-digit', minute:'2-digit'
+      });
+    }
+
+    function renderEvents() {
+      const filtered = getFilteredEvents();
+      const all      = seizureEvents[currentUser] || [];
+      const list     = document.getElementById('eventsList');
+
+      document.getElementById('statTotal').textContent = filtered.length;
+      const days  = { week:7, month:30, '3months':90, all:999 }[currentPeriod] || 999;
+      const perWk = (filtered.length / (days / 7)).toFixed(1);
+      document.getElementById('statAvgPerWeek').textContent = perWk;
+      document.getElementById('statLastEvent').textContent  = all.length ? timeAgo(all[0].timestamp) : '—';
+
+      if (!filtered.length) {
+        list.innerHTML = '<div class="events-empty">No events in this period.</div>';
+        return;
+      }
+      list.innerHTML = filtered.map(function(e) {
+        return '<div class="event-row">' +
+          '<div class="event-dot"></div>' +
+          '<div class="event-info">' +
+            '<div class="event-date">' + formatDate(e.timestamp) + '</div>' +
+            (e.note ? '<div class="event-note">' + e.note + '</div>' : '') +
+          '</div>' +
+          '<div class="event-time-ago">' + timeAgo(e.timestamp) + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+
+    // ══════════════════════════════
+    // REPORT MODAL
+    // ══════════════════════════════
+    function openReport() {
+      if (!currentUser) return;
+      const all     = seizureEvents[currentUser] || [];
+      const week    = all.filter(function(e){ return Date.now() - e.timestamp <= 7*86400000; });
+      const month   = all.filter(function(e){ return Date.now() - e.timestamp <= 30*86400000; });
+      const months3 = all.filter(function(e){ return Date.now() - e.timestamp <= 90*86400000; });
+      const name      = USERS[currentUser].displayName;
+      const generated = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'});
+
+      const recentRows = month.length === 0
+        ? '<div style="font-size:0.75rem;color:var(--muted);">No events in this period.</div>'
+        : month.slice(0,15).map(function(e) {
+            const d = new Date(e.timestamp).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+            return '<div class="report-event-row"><div class="report-event-dot"></div><div style="flex:1">' + d + (e.note ? ' — <em style="color:var(--muted)">' + e.note + '</em>' : '') + '</div></div>';
+          }).join('');
+
+      document.getElementById('reportBody').innerHTML =
+        '<div class="report-section-label">Patient</div>' +
+        '<div style="font-size:0.85rem;font-weight:700;margin-bottom:4px;">' + name + '</div>' +
+        '<div style="font-size:0.7rem;color:var(--muted);margin-bottom:16px;">Report generated: ' + generated + '</div>' +
+        '<div class="report-section-label">Summary</div>' +
+        '<div class="report-grid">' +
+          '<div class="report-stat"><div class="report-stat-val red">' + week.length + '</div><div class="report-stat-label">Last 7 days</div></div>' +
+          '<div class="report-stat"><div class="report-stat-val red">' + month.length + '</div><div class="report-stat-label">Last 30 days</div></div>' +
+          '<div class="report-stat"><div class="report-stat-val">' + months3.length + '</div><div class="report-stat-label">Last 3 months</div></div>' +
+          '<div class="report-stat"><div class="report-stat-val">' + all.length + '</div><div class="report-stat-label">All time</div></div>' +
+        '</div>' +
+        '<div class="report-section-label" style="margin-top:20px;">Frequency</div>' +
+        '<div style="font-size:0.78rem;color:var(--muted);line-height:1.8;">' +
+          '7-day avg: <strong style="color:var(--text)">' + week.length + ' events</strong><br>' +
+          'Weekly avg (30d): <strong style="color:var(--text)">' + (month.length/4.3).toFixed(1) + ' per week</strong><br>' +
+          'Last event: <strong style="color:var(--text)">' + (all.length ? timeAgo(all[0].timestamp) : 'None recorded') + '</strong>' +
+        '</div>' +
+        '<div class="report-section-label" style="margin-top:20px;">Recent Events (Last 30 days)</div>' +
+        '<div>' + recentRows + '</div>' +
+        '<button class="report-download-btn" onclick="downloadReport(\'' + name + '\', \'' + generated + '\')">Download Report (TXT)</button>';
+
+      document.getElementById('reportOverlay').classList.add('open');
+    }
+
+
+    function closeReport() {
+      document.getElementById('reportOverlay').classList.remove('open');
+    }
+
+    function downloadReport(name, date) {
+      const all   = seizureEvents[currentUser] || [];
+      const week  = all.filter(e => Date.now() - e.timestamp <= 7*86400000);
+      const month = all.filter(e => Date.now() - e.timestamp <= 30*86400000);
+      const SEP   = '================================';
+      const lastEvt = all.length ? new Date(all[0].timestamp).toLocaleString() : 'None';
+      const eventLog = all.map(function(e,i) {
+        return '[' + (i+1) + '] ' + new Date(e.timestamp).toLocaleString() + (e.note ? ' - ' + e.note : '');
+      }).join('\n');
+      const txt = [
+        'FLICKR - SEIZURE REPORT', SEP,
+        'Patient:   ' + name,
+        'Generated: ' + date, '',
+        'SUMMARY', '--------',
+        'Last 7 days:    ' + week.length + ' events',
+        'Last 30 days:   ' + month.length + ' events',
+        'All time total: ' + all.length + ' events',
+        'Weekly avg (30d): ' + (month.length/4.3).toFixed(1) + ' per week',
+        'Last event: ' + lastEvt, '',
+        'EVENT LOG (All time)', '---------------------',
+        eventLog, '', SEP,
+        'Generated by Flickr - flickrapp.com',
+        'This report is for informational purposes only.',
+        'Share with your neurologist or healthcare provider.',
+      ].join('\n');
+      const blob = new Blob([txt], {type:'text/plain'});
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = 'flickr_report_' + name.toLowerCase() + '_' + Date.now() + '.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+
+    // ══════════════════════════════
+    // ADAPTIVE MODEL — FEEDBACK & SENSITIVITY
+    // ══════════════════════════════
+    async function fetchSensitivity() {
+      if (!currentUser || !currentPassword) return;
+      try {
+        var r = await fetch(BACKEND + '/user-profile?username=' + currentUser + '&password=' + encodeURIComponent(currentPassword));
+        var d = await r.json();
+        if (d.sensitivity !== undefined) {
+          userSensitivity = d.sensitivity;
+          updateSensitivityUI(d);
+
+          // Sync local sensitivity profile so slider starts at the right position
+          var p = getProfile(currentUser);
+          p.computedThreshold = parseFloat(d.sensitivity);
+          saveSensitivity();
+
+          // Sync slider if feedbackRow is already visible (e.g. user logs in mid-session)
+          var slider = document.getElementById("sensitivitySlider");
+          var feedbackRow = document.getElementById("feedbackRow");
+          if (slider && feedbackRow && feedbackRow.classList.contains("visible")) {
+            var sv = Math.round(d.sensitivity * 10);
+            sv = Math.max(1, Math.min(9, sv));
+            slider.value = sv;
+            onSliderInput(sv);
+          }
+        }
+      } catch(e) {}
+    }
+
+    function updateSensitivityUI(profile) {
+      var s = profile.sensitivity;
+      document.getElementById('sensitivityBarFill').style.width = Math.round(s * 100) + '%';
+
+      var label, desc;
+      if (s <= 0.25)      { label = 'Very Strict'; desc = 'Flags most content'; }
+      else if (s <= 0.45) { label = 'Strict';      desc = 'Below default threshold'; }
+      else if (s <= 0.55) { label = 'Default';     desc = 'Standard W3C threshold'; }
+      else if (s <= 0.75) { label = 'Relaxed';     desc = 'Above default threshold'; }
+      else                { label = 'Very Relaxed'; desc = 'Minimal flagging'; }
+
+      document.getElementById('sensitivityValueText').textContent = label;
+      document.getElementById('sensitivityDescText').textContent  = desc;
+
+      var fbCount = profile.feedback_count || 0;
+      var subEl = document.querySelector('#sensitivityCard .sensitivity-sub');
+      if (subEl) {
+        // Show adaptive threshold history if available, else feedback count
+        var histLabel = '';
+        if (currentUser) {
+          try {
+            var stored = JSON.parse(localStorage.getItem('flickr_adaptive_thresholds') || '{}');
+            var history = stored[currentUser] || [];
+            if (history.length > 0) {
+              var avg = history.reduce(function(sum,e){ return sum + e.threshold; }, 0) / history.length;
+              histLabel = 'Avg threshold: ' + avg.toFixed(1) + ' across ' + history.length + ' video' + (history.length === 1 ? '' : 's');
+            }
+          } catch(e2) {}
+        }
+        if (histLabel) { subEl.textContent = histLabel; }
+        else if (fbCount > 0) { subEl.textContent = 'From ' + fbCount + ' video feedback' + (fbCount === 1 ? '' : 's'); }
+        else { subEl.textContent = 'Adapts based on your video feedback'; }
+      }
+    }
+
+    // submitFeedback defined below
+
+    // ══════════════════════════════
+    // EPILEPSY SUPPORT CHATBOT
+    // ══════════════════════════════
+    const CHAT_SYSTEM = "You are a compassionate and knowledgeable epilepsy support assistant called Flickr AI. You help people with epilepsy and their caregivers by: explaining different types of seizures and epilepsy conditions in plain language, discussing common seizure triggers and how to avoid them, advising on what information to track and share with neurologists, providing emotional support and reassurance, explaining medical terms, and guiding users on when to seek urgent medical attention. You are warm, clear, and patient. You always remind users that you cannot provide medical diagnoses and that they should consult their neurologist or doctor for any medical decisions. When someone describes symptoms, help them understand what they might mean and what questions to ask their doctor - never diagnose. If someone seems to be in a medical emergency, urgently tell them to call emergency services. Keep responses concise and easy to read. Use short paragraphs. Avoid overwhelming the user with information.";
+
+    var chatHistory = [];
+    var chatIsTyping = false;
+
+    function chatNow() {
+      return new Date().toLocaleTimeString("en-GB", {hour:"2-digit", minute:"2-digit"});
+    }
+
+    function initChat() {
+      var msgs = document.getElementById("chatMessages");
+      if (!msgs) return;
+      msgs.innerHTML = "";
+      chatHistory = [];
+
+      var welcomeText = "Hi, I am Flickr AI, your epilepsy support companion. I am here to help you understand epilepsy, learn about seizure types and triggers, figure out what to track and discuss with your neurologist, and answer any questions you have about living with epilepsy. I am not a doctor and cannot diagnose conditions, but I am here to support and inform you. What would you like to know?";
+      appendBotMessage(welcomeText);
+    }
+
+    function appendBotMessage(text) {
+      var msgs = document.getElementById("chatMessages");
+      var time = chatNow();
+
+      var initials = "FA";
+      var row = document.createElement("div");
+      row.className = "chat-msg bot";
+
+      var av = document.createElement("div");
+      av.className = "msg-avatar bot";
+      av.textContent = initials;
+
+      var right = document.createElement("div");
+
+      var bubble = document.createElement("div");
+      bubble.className = "msg-bubble";
+      bubble.innerHTML = formatChatText(text);
+
+      var ts = document.createElement("div");
+      ts.className = "msg-time";
+      ts.textContent = time;
+
+      right.appendChild(bubble);
+      right.appendChild(ts);
+      row.appendChild(av);
+      row.appendChild(right);
+      msgs.appendChild(row);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function appendUserMessage(text) {
+      var msgs = document.getElementById("chatMessages");
+      var time = chatNow();
+
+      var row = document.createElement("div");
+      row.className = "chat-msg user";
+
+      var av = document.createElement("div");
+      av.className = "msg-avatar user";
+      av.textContent = currentUser ? USERS[currentUser].displayName.charAt(0).toUpperCase() : "U";
+
+      var right = document.createElement("div");
+
+      var bubble = document.createElement("div");
+      bubble.className = "msg-bubble";
+      bubble.textContent = text;
+
+      var ts = document.createElement("div");
+      ts.className = "msg-time";
+      ts.textContent = time;
+
+      right.appendChild(bubble);
+      right.appendChild(ts);
+      row.appendChild(right);
+      row.appendChild(av);
+      msgs.appendChild(row);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function showTyping() {
+      var msgs = document.getElementById("chatMessages");
+      var ind = document.createElement("div");
+      ind.className = "typing-indicator";
+      ind.id = "typingIndicator";
+
+      var av = document.createElement("div");
+      av.className = "msg-avatar bot";
+      av.textContent = "FA";
+
+      var bubble = document.createElement("div");
+      bubble.className = "typing-bubble";
+      for (var i = 0; i < 3; i++) {
+        var dot = document.createElement("div");
+        dot.className = "typing-dot";
+        bubble.appendChild(dot);
+      }
+
+      ind.appendChild(av);
+      ind.appendChild(bubble);
+      msgs.appendChild(ind);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function hideTyping() {
+      var ind = document.getElementById("typingIndicator");
+      if (ind) ind.remove();
+    }
+
+    function formatChatText(text) {
+      // Bold **text**, line breaks, basic formatting — no template literals
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\n/g, "<br>");
+    }
+
+    function sendSuggestion(el) {
+      var text = el.textContent;
+      document.getElementById("chatSuggestions").style.display = "none";
+      sendChatWith(text);
+    }
+
+    function sendChatMessage() {
+      var input = document.getElementById("chatInput");
+      var text = input.value.trim();
+      if (!text || chatIsTyping) return;
+      input.value = "";
+      input.style.height = "auto";
+      document.getElementById("chatSuggestions").style.display = "none";
+      sendChatWith(text);
+    }
+
+    async function sendChatWith(text) {
+      appendUserMessage(text);
+      chatHistory.push({ role: "user", content: text });
+      chatIsTyping = true;
+      document.getElementById("chatSendBtn").disabled = true;
+      showTyping();
+
+      try {
+        var response = await fetch(BACKEND + "/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: chatHistory
+          })
+        });
+
+        var data = await response.json();
+        var reply = data.reply || "I am sorry, I could not get a response. Please try again.";
+        if (data.error) throw new Error(data.error);
+        chatHistory.push({ role: "assistant", content: reply });
+        hideTyping();
+        appendBotMessage(reply);
+      } catch (err) {
+        hideTyping();
+        var isNetworkErr = (err instanceof TypeError && err.message.includes("fetch"));
+        var msg = isNetworkErr
+          ? "Cannot reach the server. Make sure your Flask backend is running on localhost:8000 (run: python app.py) then try again."
+          : ("Error: " + (err.message || "Something went wrong. Please try again."));
+        appendBotMessage(msg);
+        chatHistory.pop();
+      }
+
+      chatIsTyping = false;
+      document.getElementById("chatSendBtn").disabled = false;
+    }
+
+    // Auto-resize textarea
+    document.addEventListener("DOMContentLoaded", function() {
+      var inp = document.getElementById("chatInput");
+      if (inp) {
+        inp.addEventListener("input", function() {
+          this.style.height = "auto";
+          this.style.height = Math.min(this.scrollHeight, 140) + "px";
+        });
+        inp.addEventListener("keydown", function(e) {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendChatMessage();
+          }
+        });
+      }
+    });
+
+
+    // ══════════════════════════════════════════════════════
+    // PERSONALISED SENSITIVITY — ADAPTIVE LEARNING MODEL
+    // ══════════════════════════════════════════════════════
+    //
+    // Each user has a threshold profile:
+    //   base_threshold : 0.0–1.0  (default 0.5 = standard WCAG threshold)
+    //   feedback_log   : array of { rating: +1 (fine) | -1 (bad), weight, triggers }
+    //   computed_threshold = base clamped by feedback bias
+    //
+    // Learning rule (exponential weighted moving average):
+    //   bias = sum(rating * weight) / sum(weight)
+    //   new_threshold = 0.5 + (bias * 0.4)   → range 0.1 – 0.9
+    //   weights decay: older feedback gets 0.85 multiplier each session
+    //
+    // A "bad" rating on a low-trigger video → threshold lowers (more sensitive)
+    // A "fine" rating on a high-trigger video → threshold raises (less sensitive)
+
+    var SENSITIVITY_KEY = "flickr_sensitivity";
+    var sensitivityProfiles = {};
+    var lastAnalysisTriggers = 0;   // set when results come in
+
+    // ── Load from localStorage ──
+    try {
+      var _sp = localStorage.getItem(SENSITIVITY_KEY);
+      if (_sp) sensitivityProfiles = JSON.parse(_sp);
+    } catch(e) {}
+
+    function saveSensitivity() {
+      try { localStorage.setItem(SENSITIVITY_KEY, JSON.stringify(sensitivityProfiles)); } catch(e) {}
+    }
+
+    // ── Get or create profile for a user ──
+    function getProfile(uid) {
+      if (!sensitivityProfiles[uid]) {
+        sensitivityProfiles[uid] = {
+          base: 0.5,
+          feedbackLog: [],
+          computedThreshold: 0.5,
+          sessionCount: 0
+        };
+      }
+      return sensitivityProfiles[uid];
+    }
+
+    // ── Compute threshold from feedback log ──
+    function recomputeThreshold(profile) {
+      var log = profile.feedbackLog;
+      if (!log.length) { profile.computedThreshold = profile.base; return; }
+
+      var weightedSum = 0;
+      var totalWeight = 0;
+      for (var i = 0; i < log.length; i++) {
+        weightedSum += log[i].rating * log[i].weight;
+        totalWeight += log[i].weight;
+      }
+      var bias = totalWeight > 0 ? weightedSum / totalWeight : 0;
+      // Map bias [-1, +1] → threshold [0.1, 0.9]
+      var t = 0.5 + (bias * 0.4);
+      profile.computedThreshold = Math.max(0.1, Math.min(0.9, t));
+    }
+
+    // ── Get current user's threshold (0–1) ──
+    function getUserThreshold() {
+      var uid = currentUser || "anonymous";
+      var p = getProfile(uid);
+      recomputeThreshold(p);
+      return p.computedThreshold;
+    }
+
+    // ── SINGLE unified submitFeedback ──
+    // Handles both results-page buttons ('bad'/'fine') and safe-video card ('seizure'/'no_issue')
+    // Always updates local profile AND backend, then re-renders the sensitivity card.
+    async function submitFeedback(rating) {
+      // Normalise: 'bad' and 'seizure' both mean "this bothered me"
+      var isBad = (rating === 'bad' || rating === 'seizure');
+      var localRating = isBad ? -1 : 1;
+      var backendOutcome = isBad ? 'seizure' : 'no_issue';
+
+      // ── 1. Update local profile immediately (no backend needed) ──
+      var uid = currentUser || "anonymous";
+      var p = getProfile(uid);
+      for (var i = 0; i < p.feedbackLog.length; i++) p.feedbackLog[i].weight *= 0.85;
+      p.feedbackLog.push({ rating: localRating, weight: 1.0, triggers: lastAnalysisTriggers });
+      if (p.feedbackLog.length > 20) p.feedbackLog.shift();
+      p.sessionCount = (p.sessionCount || 0) + 1;
+      recomputeThreshold(p);
+      saveSensitivity();
+
+      // ── 2. Update sensitivity card on logger page immediately ──
+      updateSensitivityUI({ sensitivity: p.computedThreshold, feedback_count: p.feedbackLog.length });
+
+      // ── 3. Update slider chip ──
+      var sliderVal = Math.round(p.computedThreshold * 10);
+      sliderVal = Math.max(1, Math.min(9, sliderVal));
+      var slider = document.getElementById("sensitivitySlider");
+      if (slider) { slider.value = sliderVal; onSliderInput(sliderVal); }
+
+      // ── 4. Highlight the button that was clicked ──
+      var fbBad  = document.getElementById("fbBad");
+      var fbFine = document.getElementById("fbFine");
+      if (fbBad)  fbBad.className  = "feedback-btn" + (isBad  ? " selected-bad"  : "");
+      if (fbFine) fbFine.className = "feedback-btn" + (!isBad ? " selected-fine" : "");
+
+      // ── 5. Show "Saved" confirmation ──
+      var saved = document.getElementById("feedbackSaved");
+      if (saved) {
+        saved.textContent = "Saved ✓";
+        saved.classList.add("show");
+        setTimeout(function() { saved.classList.remove("show"); }, 2000);
+      }
+
+      // ── 6. Also push to backend if logged in ──
+      if (currentUser && currentPassword) {
+        document.querySelectorAll('.feedback-btn').forEach(function(b){ b.disabled = true; b.style.opacity = '0.5'; });
+        try {
+          var r = await fetch(BACKEND + '/feedback', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ username: currentUser, password: currentPassword, outcome: backendOutcome })
+          });
+          var d = await r.json();
+          if (d.ok) {
+            // Backend may compute a slightly different value — use it as source of truth
+            userSensitivity = d.sensitivity;
+            p.computedThreshold = d.sensitivity;
+            saveSensitivity();
+            updateSensitivityUI({ sensitivity: d.sensitivity, feedback_count: d.feedback_count || p.feedbackLog.length });
+            var sliderVal2 = Math.round(d.sensitivity * 10);
+            sliderVal2 = Math.max(1, Math.min(9, sliderVal2));
+            if (slider) { slider.value = sliderVal2; onSliderInput(sliderVal2); }
+            // Update safe-video feedback card message if present
+            var thanks = document.getElementById('feedbackThanks');
+            if (thanks) {
+              thanks.textContent = isBad
+                ? 'Sorry to hear that. Your threshold has been tightened.'
+                : 'Great! Noted. Your profile will gradually relax.';
+              thanks.style.display = 'block';
+            }
+          }
+        } catch(e) {}
+        document.querySelectorAll('.feedback-btn').forEach(function(b){ b.disabled = false; b.style.opacity = '1'; });
+      }
+    }
+
+    function updateThresholdDisplay(t) { /* no-op: replaced by updateSensitivityUI */ }
+
+    // ── Show feedback row after analysis ──
+    // Slider label map (1=most sensitive, 9=least sensitive)
+    var SLIDER_LABELS = {
+      1: "Very High", 2: "High", 3: "Above Average",
+      4: "Slightly Above", 5: "Default",
+      6: "Slightly Below", 7: "Below Average", 8: "Low", 9: "Very Low"
+    };
+
+    function onSliderInput(val) {
+      val = parseInt(val);
+      var chip = document.getElementById("sliderChip");
+      if (chip) {
+        chip.textContent = SLIDER_LABELS[val] || "Default";
+        chip.className = "slider-value-chip";
+        if (val <= 3) chip.classList.add("chip-sensitive");
+        else if (val >= 7) chip.classList.add("chip-tolerant");
+      }
+    }
+
+    function onSliderCommit(val) {
+      val = parseInt(val);
+      var newThreshold = val / 10.0;
+      var uid = currentUser || "anonymous";
+      var p = getProfile(uid);
+      p.computedThreshold = newThreshold;
+      p.feedbackLog = [];   // manual override resets learned bias
+      saveSensitivity();
+
+      // Immediately re-render the sensitivity card on the logger page
+      if (currentUser) {
+        updateSensitivityUI({ sensitivity: newThreshold, feedback_count: 0 });
+      }
+
+      // Push to backend so next analysis uses this value
+      if (currentUser && currentPassword) {
+        fetch(BACKEND + '/update-sensitivity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: currentUser, password: currentPassword, sensitivity: newThreshold })
+        }).catch(function() {});
+      }
+
+      var saved = document.getElementById("feedbackSaved");
+      if (saved) {
+        saved.textContent = "Saved ✓";
+        saved.classList.add("show");
+        setTimeout(function() { saved.classList.remove("show"); }, 2000);
+      }
+    }
+
+    // Compute dim/sat/blur params to send to backend based on threshold
+    // threshold 0.1 (very sensitive) → heavy dampening: dim=0.35, sat=0.25, blur=7
+    // threshold 0.5 (default)        → balanced:         dim=0.65, sat=0.60, blur=3
+    // threshold 0.9 (tolerant)       → light:            dim=0.85, sat=0.85, blur=0
+    function getDampenParams(t) {
+      // Linear interpolation between sensitive and tolerant extremes
+      var dim  = 0.35 + (t - 0.1) * (0.85 - 0.35) / 0.8;
+      var sat  = 0.25 + (t - 0.1) * (0.85 - 0.25) / 0.8;
+      var blur = Math.round(7  - (t - 0.1) * (7 - 0)    / 0.8);
+      return {
+        dim_factor:  Math.round(dim  * 100) / 100,
+        sat_factor:  Math.round(sat  * 100) / 100,
+        blur_px:     Math.max(0, blur)
+      };
+    }
+
+    function showFeedbackRow(triggerCount) {
+      lastAnalysisTriggers = triggerCount;
+      var row = document.getElementById("feedbackRow");
+      if (!row) return;
+      row.classList.add("visible");
+
+      // Reset button states
+      document.getElementById("fbBad").className  = "feedback-btn";
+      document.getElementById("fbFine").className = "feedback-btn";
+      var saved = document.getElementById("feedbackSaved");
+      if (saved) { saved.textContent = ""; saved.classList.remove("show"); }
+
+      // Set slider to current threshold for this user
+      var uid = currentUser || "anonymous";
+      var p = getProfile(uid);
+      recomputeThreshold(p);
+      var sliderVal = Math.round(p.computedThreshold * 10);
+      sliderVal = Math.max(1, Math.min(9, sliderVal));
+      var slider = document.getElementById("sensitivitySlider");
+      var chip   = document.getElementById("sliderChip");
+      if (slider) { slider.value = sliderVal; onSliderInput(sliderVal); }
+      if (chip)   chip.textContent = SLIDER_LABELS[sliderVal] || "Default";
+
+      // If logged in, show how many analyses they've had and average adaptive threshold
+      if (currentUser) {
+        try {
+          var stored = JSON.parse(localStorage.getItem('flickr_adaptive_thresholds') || '{}');
+          var history = stored[currentUser] || [];
+          if (history.length > 1) {
+            var avg = history.reduce(function(s,e){ return s + e.threshold; }, 0) / history.length;
+            var desc = document.querySelector('.feedback-header-desc');
+            if (desc) {
+              desc.innerHTML = 'Adjust how sensitive Flickr is for <em>you</em>. Your average adaptive threshold across <strong>' + history.length + ' videos</strong> is <strong style="color:var(--blue)">' + avg.toFixed(1) + '</strong>. Feedback after each video trains your personal model.';
+            }
+          }
+        } catch(e) {}
+      }
+    }
+
+  </script>
+</body>
+</html>
