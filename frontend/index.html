@@ -911,6 +911,7 @@
 
     /* Sensitivity badge on logger page */
     .sensitivity-card { width:100%; max-width:560px; background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin-bottom:20px; animation:fadeUp 0.4s 0.05s ease both; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .sensitivity-left {}
     .sensitivity-label { font-size:0.62rem; font-weight:800; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-bottom:5px; }
     .sensitivity-value { font-size:1.1rem; font-weight:900; }
     .sensitivity-sub { font-size:0.65rem; color:var(--muted); font-weight:600; margin-top:3px; }
@@ -1216,6 +1217,7 @@
       0%,100% { opacity: 0.3; transform: scale(1); }
       50%      { opacity: 1;   transform: scale(1.06); }
     }
+    .chat-header-info {}
     .chat-header-name { font-size: 0.92rem; font-weight: 800; letter-spacing: -0.2px; margin-bottom: 3px; }
     .chat-header-status { display: flex; align-items: center; gap: 6px; font-size: 0.67rem; font-weight: 600; color: var(--muted); }
     .chat-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); animation: statusBlink 2s ease-in-out infinite; }
@@ -1337,6 +1339,7 @@
     .feedback-header {
       display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
     }
+    .feedback-header-text {}
     .feedback-header-title {
       font-size: 0.82rem; font-weight: 800; margin-bottom: 4px;
       display: flex; align-items: center; gap: 7px;
@@ -2489,13 +2492,11 @@
       } else {
         dlBtn.style.display = 'none';
       }
+      // Ensure the link section panel is open so resultBox is visible
+      document.getElementById('safeBtn').classList.add('open');
+      document.getElementById('linkSection').classList.add('open');
       showSubState('resultBox');
       showFeedbackRow(triggerCount);
-      if (currentUser) {
-        document.getElementById('feedbackCard').style.display = 'block';
-        document.getElementById('feedbackThanks').style.display = 'none';
-        document.querySelectorAll('.feedback-btn').forEach(function(b){ b.disabled = false; b.style.opacity = '1'; });
-      }
     }
 
     // ── BUILD MINI WAVEFORM ──
