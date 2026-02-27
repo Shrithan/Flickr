@@ -93,7 +93,10 @@ def create_safe_video():
 
     try:
         safe_filename = "safe_" + base_name + ".mp4"
-        safe_path     = os.path.join(OUTPUT_FOLDER, safe_filename)
+        # Use absolute path so file is always written/served from the same place
+        abs_output    = os.path.abspath(OUTPUT_FOLDER)
+        os.makedirs(abs_output, exist_ok=True)
+        safe_path     = os.path.join(abs_output, safe_filename)
 
         username = (request.form.get("username") or "").strip().lower()
         password = (request.form.get("password") or "")
@@ -132,6 +135,10 @@ def create_safe_video():
             report_path, _ = write_outputs(result, REPORT_FOLDER)
             sanitize_video(filepath, report_path, safe_path)
 
+        if not os.path.exists(safe_path):
+            return jsonify({"error": f"Processing completed but output file not found at {safe_path}"}), 500
+
+        print(f"Safe video written: {safe_path} ({os.path.getsize(safe_path)} bytes)")
         return jsonify({
             "triggers":           result.get("possible_triggers", 0),
             "timestamps":         result.get("harmful_segment_end_times_sec", []),
@@ -147,7 +154,7 @@ def create_safe_video():
 # ── Download ────────────────────────────────────────────────────────────────
 @app.route("/download/<filename>")
 def download_file(filename):
-    return send_from_directory(OUTPUT_FOLDER, filename, as_attachment=True)
+    return send_from_directory(os.path.abspath(OUTPUT_FOLDER), filename, as_attachment=True)
 
 
 
